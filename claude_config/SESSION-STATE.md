@@ -44,6 +44,13 @@ e la serata. Prima festa: **2026-10-02**.
 - Verificato in produzione (2026-09-24): 3 browser separati, tempo reale ok; dati di prova
   eliminati (27 azioni, 0 partecipanti).
 
+## Richiesta in analisi (2026-09-24)
+L'utente ha chiesto: logout per tutti (FATTO), foto sulle azioni (abilitabili dall'admin),
+titolo + descrizione espandibile, modifica azioni da admin, ogni azione una sola volta con
+lista "Completate", album foto solo admin con scarica/condividi, promemoria prima di
+azzerare. Analisi e domande inviate in chat; in attesa delle risposte prima di toccare il
+modello dei dati.
+
 ## Prossimi passi
 - Prova con telefoni veri (iPhone + Android, più persone insieme) entro il 2026-09-30.
 - Prima di ogni festa: controllare che il progetto Supabase non sia in pausa.

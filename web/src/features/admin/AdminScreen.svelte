@@ -64,15 +64,15 @@
 </script>
 
 <Screen>
-  <div class="top">
-    <ScreenHeader eyebrow="Pannello admin" title="Gestisci la serata">
+  <ScreenHeader eyebrow="Pannello admin" title="Gestisci la serata">
       <p>
         {admin.participantCount === 1 ? '1 partecipante' : `${admin.participantCount} partecipanti`} ·
         {admin.catalog.length} azioni
       </p>
-    </ScreenHeader>
-    <IconButton icon="logout" label="Esci dal pannello" onclick={onlogout} />
-  </div>
+    {#snippet trailing()}
+      <IconButton icon="logout" label="Esci dal pannello" onclick={onlogout} />
+    {/snippet}
+  </ScreenHeader>
 
   {#if admin.status === 'loading'}
     <Loader label="Carico la serata…" />
@@ -170,13 +170,6 @@
 </Dialog>
 
 <style>
-  .top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: var(--space-4);
-  }
-
   .section {
     display: grid;
     gap: var(--space-3);

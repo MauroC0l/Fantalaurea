@@ -5,8 +5,10 @@
   import type { Step } from '../../domain/counts';
   import AnimatedNumber from '../../ui/components/AnimatedNumber.svelte';
   import Button from '../../ui/components/Button.svelte';
+  import Dialog from '../../ui/components/Dialog.svelte';
   import EmptyState from '../../ui/components/EmptyState.svelte';
   import Icon from '../../ui/components/Icon.svelte';
+  import IconButton from '../../ui/components/IconButton.svelte';
   import Loader from '../../ui/components/Loader.svelte';
   import Screen from '../../ui/components/Screen.svelte';
   import ScreenHeader from '../../ui/components/ScreenHeader.svelte';
@@ -15,7 +17,15 @@
   import type { GameState } from '../game/game-state.svelte';
   import ActionCard from './ActionCard.svelte';
 
-  let { game, haptics }: { game: GameState; haptics: Haptics } = $props();
+  interface Props {
+    game: GameState;
+    haptics: Haptics;
+    onlogout: () => void;
+  }
+
+  let { game, haptics, onlogout }: Props = $props();
+
+  let confirmingLogout = $state(false);
 
   type Filter = 'all' | 'bonus' | 'malus';
 
@@ -49,6 +59,9 @@
       <span class="total-number"><AnimatedNumber value={game.totalDone} /></span>
       {game.totalDone === 1 ? 'azione fatta finora' : 'azioni fatte finora'}
     </p>
+    {#snippet trailing()}
+      <IconButton icon="logout" label="Esci" onclick={() => (confirmingLogout = true)} />
+    {/snippet}
   </ScreenHeader>
 
   {#if game.status === 'loading'}
@@ -73,6 +86,18 @@
     {/key}
   {/if}
 </Screen>
+
+{#snippet logoutActions()}
+  <Button variant="danger" block onclick={onlogout}>Esci</Button>
+  <Button variant="ghost" block onclick={() => (confirmingLogout = false)}>Resta</Button>
+{/snippet}
+
+<Dialog open={confirmingLogout} title="Vuoi uscire?" onclose={() => (confirmingLogout = false)} actions={logoutActions}>
+  <p>
+    Le tue azioni restano salvate. Per rientrare usa lo stesso nickname
+    (<strong>{game.session.player.nickname}</strong>) e lo stesso nome vero.
+  </p>
+</Dialog>
 
 <style>
   .total {

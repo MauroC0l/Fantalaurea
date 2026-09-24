@@ -7,7 +7,7 @@ Le schermate e lo stato di gioco lato interfaccia.
   "Partecipa"); senza, è la pagina "Regole" della tab bar.
 - `join/JoinScreen`: iscrizione o rientro (stesso nickname + stesso nome = rientro).
 - `actions/ActionsScreen` + `ActionCard`: elenco delle azioni con filtro Tutte/Bonus/Malus,
-  contatori, vibrazione.
+  contatori, vibrazione, uscita con conferma (il token si dimentica, i dati restano).
 - `participants/ParticipantsScreen`: partecipanti ordinati per azioni fatte, aggiornati in
   tempo reale.
 - `admin/AdminScreen` + `AddActionDialog` + `admin-state.svelte.ts`: pannello admin (aggiunta

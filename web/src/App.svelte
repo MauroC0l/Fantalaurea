@@ -135,7 +135,7 @@
       {:else if playingRoute === 'regole'}
         <RulesScreen />
       {:else}
-        <ActionsScreen game={state.game} haptics={deps.haptics} />
+        <ActionsScreen game={state.game} haptics={deps.haptics} onlogout={() => signOut()} />
       {/if}
     </div>
   {/key}
