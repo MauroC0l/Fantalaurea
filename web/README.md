@@ -12,6 +12,16 @@ Scelte e motivazioni: [ADR 0001](../docs/adr/0001-frontend-svelte-typescript-spa
 | `npm test` | test automatici (Vitest) |
 | `npm run check` | controllo dei tipi (svelte-check + tsc) |
 | `npm run build` | build statica in `dist/` |
+| `npm run db:start` / `db:reset` / `db:stop` / `db:seed` | database locale, vedi [supabase/](../supabase/README.md) |
+
+## Backend usato
+- Con `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY` definite: Supabase. `.env.local` (non
+  versionato) punta allo stack locale; `.env.production` al progetto cloud.
+- Senza: backend in memoria del browser (solo per provare le schermate).
+
+## Pubblicazione
+Ogni push su `main` avvia [.github/workflows/deploy.yml](../.github/workflows/deploy.yml):
+controllo tipi, test, build e pubblicazione su GitHub Pages.
 
 ## Livelli e dipendenze
 

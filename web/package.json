@@ -9,16 +9,24 @@
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:seed": "node --experimental-strip-types scripts/generate-seed.ts",
+    "db:start": "supabase start --workdir .. -x storage-api,imgproxy,edge-runtime,logflare,vector,mailpit,supavisor,studio,postgres-meta",
+    "db:reset": "supabase db reset --workdir ..",
+    "db:stop": "supabase stop --workdir .."
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tsconfig/svelte": "^5.0.8",
     "@types/node": "^24.13.3",
+    "supabase": "^2.117.0",
     "svelte": "^5.57.0",
     "svelte-check": "^4.7.6",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.1"
   }
 }

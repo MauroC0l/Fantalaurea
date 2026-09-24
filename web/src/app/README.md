@@ -5,8 +5,9 @@ di vita della sessione.
 
 ## Contenuto
 - `compose.ts`: `composeApp()` è il composition root, l'unico punto che conosce le classi
-  concrete di `infrastructure/`. Oggi usa `MemoryBackend` e contiene le credenziali admin di
-  sviluppo (con il backend reale andranno solo sul server, vedi ADR 0005).
+  concrete di `infrastructure/`. Usa `SupabaseBackend` se sono definite le variabili
+  `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY` (file `.env.*`), altrimenti `MemoryBackend` con le
+  credenziali admin di sviluppo. Con Supabase le credenziali stanno nel database.
 - `router.svelte.ts`: `HashRouter` e le rotte `#/regole`, `#/iscrizione`, `#/azioni`,
   `#/partecipanti`, `#/admin` (routing via hash, vedi ADR 0001).
 - `../App.svelte`: macchina a stati dell'app, `booting` → `offline` | `anonymous` |
