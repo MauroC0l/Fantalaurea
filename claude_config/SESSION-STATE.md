@@ -33,14 +33,20 @@ e la serata. Prima festa: **2026-10-02**.
 - `web/.env.local` (non versionato) punta al Supabase locale.
 - 29 test verdi, check pulito. Bundle circa 91 kB gzip (supabase-js).
 
-## In corso / prossimi passi
-1. L'utente crea il progetto Supabase cloud (regione Frankfurt) e manda Project URL +
-   chiave publishable.
-2. Si applica lo schema al cloud (CLI `supabase link` + `db push --include-seed`, oppure SQL
-   Editor).
-3. Claude crea `web/.env.production` e fa push; l'utente abilita GitHub Pages (Settings →
-   Pages → Source: GitHub Actions). URL atteso: https://maurocol.github.io/Fantalaurea/
-4. Prova con telefoni veri entro il 2026-09-30.
+## Produzione (2026-09-24)
+- Progetto Supabase `bakucjmeuswvkaiyaiud` (Frankfurt), collegato con `supabase link`
+  (l'utente ha fatto login e link; Claude può lanciare `npx supabase db push --workdir ..`
+  da `web/`).
+- Schema + seed caricati e verificati via API: 27 azioni, RLS ok, database svuotato dopo
+  la prova.
+- `web/.env.production` versionato con URL e chiave publishable.
+- GitHub Pages abilitato dall'utente. URL: https://maurocol.github.io/Fantalaurea/
+
+## Prossimi passi
+- Prova con telefoni veri (iPhone + Android, più persone insieme) entro il 2026-09-30.
+- Prima di ogni festa: controllare che il progetto Supabase non sia in pausa.
+- Docker serve solo per lo stack locale: chiudibile, non serve alla produzione.
+- Nuove modifiche al DB: nuova migrazione in `supabase/migrations/` + `db push`.
 
 ## Trappole
 - Supabase gratuito va in pausa dopo 7 giorni senza traffico: riattivarlo prima di ogni festa.
