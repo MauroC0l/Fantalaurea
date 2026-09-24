@@ -1,4 +1,5 @@
 import { err, ok, type Result } from './result';
+import { normalizeText } from './text';
 
 export interface Player {
   readonly id: string;
@@ -11,10 +12,19 @@ export interface Participant {
   readonly actionsDone: number;
 }
 
-export interface Session {
+export interface PlayerSession {
+  readonly role: 'player';
   readonly player: Player;
   readonly token: string;
 }
+
+/** The admin manages the evening but is not a player: it has no counts and no ranking. */
+export interface AdminSession {
+  readonly role: 'admin';
+  readonly token: string;
+}
+
+export type Session = PlayerSession | AdminSession;
 
 export interface Identity {
   readonly nickname: string;
@@ -33,19 +43,15 @@ export const IDENTITY_LIMITS: Readonly<Record<IdentityField, { min: number; max:
   realName: { min: 2, max: 40 },
 };
 
-export function normalizeName(raw: string): string {
-  return raw.trim().replace(/\s+/g, ' ');
-}
-
 /** Two names are the same identity if they differ only in case or spacing. */
 export function sameName(a: string, b: string): boolean {
-  return normalizeName(a).toLocaleLowerCase('it') === normalizeName(b).toLocaleLowerCase('it');
+  return normalizeText(a).toLocaleLowerCase('it') === normalizeText(b).toLocaleLowerCase('it');
 }
 
 export function validateIdentity(raw: Identity): Result<Identity, readonly IdentityError[]> {
   const identity: Identity = {
-    nickname: normalizeName(raw.nickname),
-    realName: normalizeName(raw.realName),
+    nickname: normalizeText(raw.nickname),
+    realName: normalizeText(raw.realName),
   };
   const errors = (Object.keys(IDENTITY_LIMITS) as IdentityField[]).flatMap((field): IdentityError[] => {
     const { min, max } = IDENTITY_LIMITS[field];

@@ -3,7 +3,7 @@
   import type { HTMLButtonAttributes } from 'svelte/elements';
 
   interface Props extends Omit<HTMLButtonAttributes, 'class'> {
-    variant?: 'primary' | 'ghost';
+    variant?: 'primary' | 'ghost' | 'danger';
     loading?: boolean;
     block?: boolean;
     children: Snippet;
@@ -73,6 +73,12 @@
     color: var(--color-text);
     backdrop-filter: blur(var(--blur-glass));
     -webkit-backdrop-filter: blur(var(--blur-glass));
+  }
+
+  [data-variant='danger'] {
+    background: color-mix(in srgb, var(--color-danger) 16%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-danger) 60%, transparent);
+    color: var(--color-danger);
   }
 
   .content {

@@ -17,8 +17,10 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
 |---|---|
 | `Screen` | contenitore di pagina: larghezza massima, margini, spazio per tab bar o footer fisso |
 | `ScreenHeader` | occhiello + titolo a gradiente + testo |
-| `Button` | `primary` (gradiente) o `ghost` (vetro), stato `loading` |
-| `TextField` | campo con etichetta flottante, suggerimento ed errore animato |
+| `Button` | `primary` (gradiente), `ghost` (vetro) o `danger`, stato `loading` |
+| `IconButton` | pulsante tondo con sola icona (etichetta accessibile obbligatoria) |
+| `Dialog` | pannello che sale dal basso con sfondo sfocato; si chiude con Esc o toccando fuori |
+| `TextField` | campo con etichetta flottante, suggerimento ed errore animato; `multiline` per testi lunghi |
 | `Stepper` | − valore + con animazione del numero e coriandoli (`Burst`) sul + |
 | `SegmentedControl` | scelta tra poche opzioni con indicatore che scorre |
 | `TabBar` | barra di navigazione fluttuante in basso |

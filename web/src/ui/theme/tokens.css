@@ -8,6 +8,7 @@
   --color-surface: rgb(255 255 255 / 0.055);
   --color-surface-strong: rgb(255 255 255 / 0.1);
   --color-surface-overlay: rgb(20 12 34 / 0.72);
+  --color-bg-elevated: #160d25;
   --color-border: rgb(255 255 255 / 0.09);
   --color-border-strong: rgb(255 255 255 / 0.2);
   --color-text: #f7f2ff;
@@ -24,6 +25,7 @@
   --color-malus: #ff5470;
   --color-common: #ffc53d;
   --color-danger: var(--color-malus);
+  --color-backdrop: rgb(5 2 10 / 0.6);
 
   --avatar-1: linear-gradient(135deg, #ff3d8b, #ff9a3d);
   --avatar-2: linear-gradient(135deg, #a855f7, #22d3ee);
@@ -80,5 +82,6 @@
 
   --z-tabbar: 10;
   --z-burst: 20;
+  --z-dialog: 25;
   --z-toast: 30;
 }

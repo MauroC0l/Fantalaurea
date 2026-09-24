@@ -7,6 +7,8 @@
   import { resumeSession } from './application/resume-session';
   import type { Session } from './domain/player';
   import ActionsScreen from './features/actions/ActionsScreen.svelte';
+  import AdminScreen from './features/admin/AdminScreen.svelte';
+  import { AdminState } from './features/admin/admin-state.svelte';
   import { GameState } from './features/game/game-state.svelte';
   import JoinScreen from './features/join/JoinScreen.svelte';
   import ParticipantsScreen from './features/participants/ParticipantsScreen.svelte';
@@ -26,7 +28,8 @@
     | { kind: 'booting' }
     | { kind: 'offline' }
     | { kind: 'anonymous' }
-    | { kind: 'playing'; game: GameState };
+    | { kind: 'playing'; game: GameState }
+    | { kind: 'administering'; admin: AdminState };
 
   const deps = composeApp();
   const router = new HashRouter();
@@ -44,43 +47,54 @@
     router.current === 'partecipanti' || router.current === 'regole' ? router.current : 'azioni',
   );
 
+  const anonymousRoute = $derived<Route>(router.current === 'iscrizione' ? 'iscrizione' : 'regole');
+
   async function boot() {
     state = { kind: 'booting' };
     const outcome = await resumeSession(deps);
-    if (outcome.kind === 'resumed') play(outcome.session);
+    if (outcome.kind === 'resumed') enter(outcome.session);
     else state = { kind: outcome.kind === 'offline' ? 'offline' : 'anonymous' };
   }
 
-  function play(session: Session) {
-    const game = new GameState(deps.board, session, handleWriteFailure);
+  function enter(session: Session) {
+    stopCurrent();
+    if (session.role === 'admin') {
+      const admin = new AdminState(deps.board, deps.admin, session);
+      state = { kind: 'administering', admin };
+      void admin.start();
+      router.go('admin');
+      return;
+    }
+    const game = new GameState(deps.board, session, {
+      onWriteFailed: handleWriteFailure,
+      onSessionLost: () => signOut('La serata è ricominciata: iscriviti di nuovo'),
+    });
     state = { kind: 'playing', game };
     void game.start();
     if (router.current !== 'partecipanti' && router.current !== 'regole') router.go('azioni');
   }
 
   function handleWriteFailure(failure: WriteFailure) {
-    if (failure === 'unauthorized') {
-      deps.sessions.clear();
-      leaveGame();
-      toasts.show('La tua iscrizione non esiste più: iscriviti di nuovo', 'error');
-      return;
-    }
-    toasts.show('Non sono riuscito a salvare: riprova', 'error');
+    if (failure === 'unauthorized') signOut('La tua iscrizione non esiste più: iscriviti di nuovo');
+    else toasts.show('Non sono riuscito a salvare: riprova', 'error');
   }
 
-  function leaveGame() {
-    if (state.kind === 'playing') state.game.stop();
+  function signOut(reason?: string) {
+    stopCurrent();
+    deps.sessions.clear();
     state = { kind: 'anonymous' };
     router.go('regole');
+    if (reason) toasts.show(reason, 'error');
   }
 
-  onDestroy(() => {
+  function stopCurrent() {
     if (state.kind === 'playing') state.game.stop();
-  });
+    if (state.kind === 'administering') state.admin.stop();
+  }
+
+  onDestroy(stopCurrent);
 
   void boot();
-
-  const anonymousRoute = $derived<Route>(router.current === 'iscrizione' ? 'iscrizione' : 'regole');
 </script>
 
 <PartyBackground />
@@ -99,12 +113,20 @@
   {#key anonymousRoute}
     <div in:fade={{ duration: duration('base') }}>
       {#if anonymousRoute === 'iscrizione'}
-        <JoinScreen accounts={deps.accounts} sessions={deps.sessions} onjoined={play} />
+        <JoinScreen accounts={deps.accounts} sessions={deps.sessions} onjoined={enter} />
       {:else}
         <RulesScreen onjoin={() => router.go('iscrizione')} />
       {/if}
     </div>
   {/key}
+{:else if state.kind === 'administering'}
+  <div in:fade={{ duration: duration('base') }}>
+    <AdminScreen
+      admin={state.admin}
+      onlogout={() => signOut()}
+      onunauthorized={() => signOut('Sessione admin scaduta: rientra')}
+    />
+  </div>
 {:else}
   {#key playingRoute}
     <div in:fade={{ duration: duration('base') }}>

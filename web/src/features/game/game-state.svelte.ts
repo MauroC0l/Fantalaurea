@@ -1,16 +1,22 @@
 import type { GameBoard, WriteFailure } from '../../application/ports';
 import type { Action } from '../../domain/action';
 import { countOf, nextCount, totalActions, withCount, type ActionCounts, type Step } from '../../domain/counts';
-import { rankParticipants, type Participant, type Session } from '../../domain/player';
+import { rankParticipants, type Participant, type PlayerSession } from '../../domain/player';
 
 export type LoadStatus = 'loading' | 'ready' | 'failed';
+
+export interface GameEvents {
+  onWriteFailed(failure: WriteFailure): void;
+  /** The player no longer exists, e.g. the admin started a new evening. */
+  onSessionLost(): void;
+}
 
 /**
  * Live view of one player's game. Counter changes show up immediately (optimistic) and are
  * written in order per action, so fast repeated taps cannot reach the backend out of order.
  */
 export class GameState {
-  readonly session: Session;
+  readonly session: PlayerSession;
   status = $state<LoadStatus>('loading');
   catalog = $state.raw<readonly Action[]>([]);
   counts = $state.raw<ActionCounts>({});
@@ -18,21 +24,20 @@ export class GameState {
   readonly totalDone = $derived(totalActions(this.counts));
 
   readonly #board: GameBoard;
-  readonly #onWriteFailed: (failure: WriteFailure) => void;
+  readonly #events: GameEvents;
   readonly #pendingWrites = new Map<string, Promise<void>>();
   #unsubscribe: (() => void) | null = null;
 
-  constructor(board: GameBoard, session: Session, onWriteFailed: (failure: WriteFailure) => void) {
+  constructor(board: GameBoard, session: PlayerSession, events: GameEvents) {
     this.#board = board;
     this.session = session;
-    this.#onWriteFailed = onWriteFailed;
+    this.#events = events;
   }
 
   async start(): Promise<void> {
     this.status = 'loading';
     try {
-      const [catalog] = await Promise.all([this.#board.catalog(), this.#refreshCounts(), this.#refreshParticipants()]);
-      this.catalog = catalog;
+      await this.#refreshAll();
       this.status = 'ready';
       this.#unsubscribe ??= this.#board.onChange(() => void this.#syncQuietly());
     } catch {
@@ -69,28 +74,38 @@ export class GameState {
   async #flush(actionId: string): Promise<void> {
     const result = await this.#board.setCount(this.session, actionId, countOf(this.counts, actionId));
     if (result.ok) return;
-    this.#onWriteFailed(result.error);
+    this.#events.onWriteFailed(result.error);
     this.#pendingWrites.delete(actionId);
     await this.#syncQuietly();
   }
 
   async #syncQuietly(): Promise<void> {
     try {
-      await Promise.all([this.#refreshCounts(), this.#refreshParticipants()]);
+      await this.#refreshAll();
     } catch {
       // The next change notification or write will try again.
     }
   }
 
-  async #refreshCounts(): Promise<void> {
-    const fromBoard = await this.#board.countsOf(this.session);
-    // Values still being written are newer than what the backend knows.
-    const merged = { ...fromBoard };
-    for (const actionId of this.#pendingWrites.keys()) merged[actionId] = countOf(this.counts, actionId);
-    this.counts = merged;
+  async #refreshAll(): Promise<void> {
+    const [catalog, fromBoard, participants] = await Promise.all([
+      this.#board.catalog(),
+      this.#board.countsOf(this.session),
+      this.#board.participants(),
+    ]);
+    if (!participants.some((p) => p.player.id === this.session.player.id)) {
+      this.#events.onSessionLost();
+      return;
+    }
+    this.catalog = catalog;
+    this.counts = this.#withPendingWrites(fromBoard);
+    this.participants = rankParticipants(participants);
   }
 
-  async #refreshParticipants(): Promise<void> {
-    this.participants = rankParticipants(await this.#board.participants());
+  /** Values still being written are newer than what the backend knows. */
+  #withPendingWrites(fromBoard: ActionCounts): ActionCounts {
+    const merged = { ...fromBoard };
+    for (const actionId of this.#pendingWrites.keys()) merged[actionId] = countOf(this.counts, actionId);
+    return merged;
   }
 }

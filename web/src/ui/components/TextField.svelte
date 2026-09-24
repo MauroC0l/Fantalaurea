@@ -10,6 +10,7 @@
     hint?: string;
     error?: string;
     maxlength?: number;
+    multiline?: boolean;
     autocomplete?: HTMLInputAttributes['autocomplete'];
     autocapitalize?: HTMLInputAttributes['autocapitalize'];
   }
@@ -21,6 +22,7 @@
     hint,
     error,
     maxlength,
+    multiline = false,
     autocomplete = 'off',
     autocapitalize = 'sentences',
   }: Props = $props();
@@ -31,18 +33,34 @@
 
 <div class="field" class:invalid={!!error}>
   <div class="control">
-    <input
-      {id}
-      {name}
-      {maxlength}
-      {autocomplete}
-      {autocapitalize}
-      bind:value
-      placeholder=" "
-      spellcheck="false"
-      aria-invalid={!!error}
-      aria-describedby={error || hint ? messageId : undefined}
-    />
+    {#if multiline}
+      <textarea
+        class="input multiline"
+        {id}
+        {name}
+        {maxlength}
+        {autocapitalize}
+        rows="3"
+        bind:value
+        placeholder=" "
+        aria-invalid={!!error}
+        aria-describedby={error || hint ? messageId : undefined}
+      ></textarea>
+    {:else}
+      <input
+        class="input"
+        {id}
+        {name}
+        {maxlength}
+        {autocomplete}
+        {autocapitalize}
+        bind:value
+        placeholder=" "
+        spellcheck="false"
+        aria-invalid={!!error}
+        aria-describedby={error || hint ? messageId : undefined}
+      />
+    {/if}
     <label for={id}>{label}</label>
   </div>
   {#if error}
@@ -62,7 +80,8 @@
     position: relative;
   }
 
-  input {
+  .input {
+    display: block;
     width: 100%;
     height: 64px;
     padding: var(--space-5) var(--space-4) 0;
@@ -79,7 +98,16 @@
       box-shadow var(--duration-base) var(--ease-out);
   }
 
-  input:focus {
+  .multiline {
+    height: auto;
+    min-height: 120px;
+    padding-top: var(--space-7);
+    padding-bottom: var(--space-3);
+    line-height: var(--leading-normal);
+    resize: none;
+  }
+
+  .input:focus {
     border-color: var(--color-accent-2);
     box-shadow: var(--focus-ring);
   }
@@ -87,7 +115,7 @@
   label {
     position: absolute;
     left: var(--space-4);
-    top: 50%;
+    top: 32px;
     color: var(--color-text-muted);
     pointer-events: none;
     transform: translateY(-50%);
@@ -97,16 +125,16 @@
       color var(--duration-base) var(--ease-out);
   }
 
-  input:focus + label,
-  input:not(:placeholder-shown) + label {
+  .input:focus + label,
+  .input:not(:placeholder-shown) + label {
     transform: translateY(-110%) scale(0.78);
   }
 
-  input:focus + label {
+  .input:focus + label {
     color: var(--color-accent-3);
   }
 
-  .invalid input {
+  .invalid .input {
     border-color: var(--color-danger);
     animation: shake var(--duration-slow) var(--ease-out);
   }

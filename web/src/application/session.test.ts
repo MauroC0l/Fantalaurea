@@ -5,7 +5,7 @@ import { joinGame } from './join-game';
 import type { PlayerAccounts, SessionStore } from './ports';
 import { resumeSession } from './resume-session';
 
-const session: Session = { player: { id: 'p1', nickname: 'Nick', realName: 'Real' }, token: 't1' };
+const session: Session = { role: 'player', player: { id: 'p1', nickname: 'Nick', realName: 'Real' }, token: 't1' };
 
 function fakeSessions(initial: string | null = null): SessionStore & { token: string | null } {
   return {

@@ -1,6 +1,6 @@
-import type { Action } from '../domain/action';
+import type { Action, ActionDraft } from '../domain/action';
 import type { ActionCounts } from '../domain/counts';
-import type { Identity, Participant, Session } from '../domain/player';
+import type { AdminSession, Identity, Participant, PlayerSession, Session } from '../domain/player';
 import type { Result } from '../domain/result';
 
 /** The backend could not be reached or failed unexpectedly. */
@@ -11,6 +11,7 @@ export type ResumeFailure = 'unknown-token' | Unavailable;
 export type WriteFailure = 'unauthorized' | 'rejected' | Unavailable;
 
 export interface PlayerAccounts {
+  /** The admin credentials open an admin session; any other identity joins as a player. */
   join(identity: Identity): Promise<Result<Session, JoinFailure>>;
   resume(token: string): Promise<Result<Session, ResumeFailure>>;
 }
@@ -19,11 +20,19 @@ export interface PlayerAccounts {
 export interface GameBoard {
   catalog(): Promise<readonly Action[]>;
   /** Includes the shared counts of the actions that belong to everyone. */
-  countsOf(session: Session): Promise<ActionCounts>;
-  setCount(session: Session, actionId: string, count: number): Promise<Result<void, WriteFailure>>;
+  countsOf(session: PlayerSession): Promise<ActionCounts>;
+  setCount(session: PlayerSession, actionId: string, count: number): Promise<Result<void, WriteFailure>>;
   participants(): Promise<readonly Participant[]>;
-  /** Notifies whenever any player's counts change; returns the unsubscribe function. */
+  /** Notifies whenever the catalog, the players or any count change; returns the unsubscribe function. */
   onChange(listener: () => void): () => void;
+}
+
+export interface EveningAdmin {
+  addAction(session: AdminSession, draft: ActionDraft): Promise<Result<Action, WriteFailure>>;
+  /** Also deletes every count recorded for that action. */
+  removeAction(session: AdminSession, actionId: string): Promise<Result<void, WriteFailure>>;
+  /** Removes every player and count; the action list stays for the next evening. */
+  resetEvening(session: AdminSession): Promise<Result<void, WriteFailure>>;
 }
 
 export interface SessionStore {

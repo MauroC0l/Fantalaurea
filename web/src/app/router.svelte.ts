@@ -1,4 +1,4 @@
-export const ROUTES = ['regole', 'iscrizione', 'azioni', 'partecipanti'] as const;
+export const ROUTES = ['regole', 'iscrizione', 'azioni', 'partecipanti', 'admin'] as const;
 
 export type Route = (typeof ROUTES)[number];
 
