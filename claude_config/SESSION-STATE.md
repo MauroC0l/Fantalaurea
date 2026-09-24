@@ -4,63 +4,63 @@ Ultimo aggiornamento: 2026-09-24
 
 ## Obiettivo
 Web app "Fantalaurea" per le feste di laurea di un gruppo di circa 50 amici. Ogni festa è
-indipendente: ci si reiscrive e alla fine i dati si buttano. L'app si usa quasi solo da
-telefono. I giocatori si iscrivono con nickname + nome reale, segnano (anche più volte) le
-azioni compiute e vedono i partecipanti con il numero di azioni. Un admin gestisce la lista
-e la serata. Prima festa: **2026-10-02**.
+indipendente: ci si reiscrive e alla fine i dati si buttano. Si usa quasi solo da telefono.
+- I giocatori completano le azioni della serata, ognuna una sola volta, alcune con foto.
+- Vedono i partecipanti con il numero di azioni fatte.
+- Un admin gestisce la lista delle azioni, l'album delle foto e la chiusura della serata.
+
+Prima festa: **2026-10-02**.
 
 ## Decisioni prese (dettagli in docs/adr/)
-- Regole di lavoro: `CLAUDE.md`. Commit e push autorizzati liberamente (2026-09-24).
-- ADR 0001: SPA Svelte 5 + TypeScript + Vite, routing via hash.
-- ADR 0002: Supabase gratuito; scritture solo tramite funzioni RPC.
-- ADR 0003: identità = nickname + nome reale.
-- ADR 0004: livelli + porte; `MemoryBackend` e `SupabaseBackend` sono intercambiabili.
-- ADR 0005: admin `Administrator` / `admin`, confermato dall'utente anche in produzione
-  pur sapendo che il repo è pubblico ("app banale"). Serata unica con azzeramento.
-- Pubblicazione: GitHub Pages tramite GitHub Actions. La configurazione Supabase del cloud
-  andrà in `web/.env.production` (URL + chiave publishable, pubblica per natura).
+- Regole di lavoro: `CLAUDE.md`. Commit e push autorizzati liberamente.
+- 0001 Svelte + TS SPA, routing via hash.
+- 0002 Supabase: scritture solo via RPC / funzione.
+- 0003 identità nickname + nome reale.
+- 0004 livelli + porte.
+- 0005 admin `Administrator` / `admin`, serata unica.
+- 0006 credenziali admin pubbliche: accettato dall'utente.
+- 0007 ogni azione una volta sola: completamenti al posto dei contatori; si può annullare;
+  il bonus comune lo annulla solo chi l'ha segnato.
+- 0008 foto: bucket privato + Edge Function `photos`; JPEG 2560 px / qualità 0,9 +
+  miniatura 480 px; politica per azione `none` / `optional` / `required`.
+- 0009 eliminato `MemoryBackend`: si sviluppa sul Supabase locale (Docker).
+- L'azione "Il gioiello di famiglia" (foto intima) ha la foto FACOLTATIVA: rischio legale
+  (art. 612-ter) segnalato due volte, confermato dall'utente.
+- Politiche foto scelte dall'utente:
+  - obbligatoria: petto nudo, verticale, selfie da paparazzo, scarpe, autografo, selfie con
+    il pelato, lento, tesi al passante;
+  - nessuna: cavallo e le altre.
+- Titoli delle azioni scritti da Claude: l'utente deve rivederli (si cambiano dal pannello).
+- Cancellare una foto obbligatoria annulla l'azione (con avviso); cancellare una foto
+  facoltativa lascia l'azione fatta.
 
 ## Stato attuale (verificato 2026-09-24)
-- Pushati su GitHub (pubblico) i commit fino al pannello admin. Il lavoro su Supabase e il
-  deploy vanno nel commit successivo.
-- `supabase/migrations/20260924000000_schema.sql` + `seed.sql` generato. Provati sullo stack
-  locale (Docker):
-  - le RPC rispondono correttamente;
-  - la RLS blocca le scritture dirette;
-  - `sessions` e `admin_credentials` non sono leggibili.
-- `SupabaseBackend` provato con 3 browser separati sul DB locale: tempo reale tra i telefoni,
-  bonus comune, aggiunta di azioni dall'admin e azzeramento → i giocatori tornano alle regole.
-- `web/.env.local` (non versionato) punta al Supabase locale.
-- 29 test verdi, check pulito. Bundle circa 91 kB gzip (supabase-js).
-
-## Produzione (2026-09-24)
-- Progetto Supabase `bakucjmeuswvkaiyaiud` (Frankfurt), collegato con `supabase link`
-  (l'utente ha fatto login e link; Claude può lanciare `npx supabase db push --workdir ..`
-  da `web/`).
-- Schema + seed caricati e verificati via API: 27 azioni, RLS ok, database svuotato dopo
-  la prova.
-- `web/.env.production` versionato con URL e chiave publishable.
-- GitHub Pages abilitato dall'utente. URL: https://mauroc0l.github.io/Fantalaurea/ (username con lo ZERO)
-- Verificato in produzione (2026-09-24): 3 browser separati, tempo reale ok; dati di prova
-  eliminati (27 azioni, 0 partecipanti).
-
-## Richiesta in analisi (2026-09-24)
-L'utente ha chiesto: logout per tutti (FATTO), foto sulle azioni (abilitabili dall'admin),
-titolo + descrizione espandibile, modifica azioni da admin, ogni azione una sola volta con
-lista "Completate", album foto solo admin con scarica/condividi, promemoria prima di
-azzerare. Analisi e domande inviate in chat; in attesa delle risposte prima di toccare il
-modello dei dati.
+- Produzione: https://mauroc0l.github.io/Fantalaurea/ (username con lo ZERO). Commit
+  `2554965` pushato.
+- Supabase `bakucjmeuswvkaiyaiud`: 3 migrazioni applicate, 27 azioni, funzione `photos`
+  pubblicata.
+- La lista predefinita è la migrazione `20260924130000_default_catalog.sql`: il seed non
+  veniva rieseguito in produzione, quindi è stato eliminato.
+- Test verdi:
+  - 19 unitari;
+  - 9 d'integrazione (`npm run test:db`, che ricrea il DB locale);
+  - prova completa nel browser sul locale: foto obbligatoria, anteprima, invio, Fatte,
+    elimina foto → annulla, modifica azione dall'admin vista in tempo reale dal giocatore,
+    album, ZIP, visore, promemoria prima di azzerare.
 
 ## Prossimi passi
-- Prova con telefoni veri (iPhone + Android, più persone insieme) entro il 2026-09-30.
-- Prima di ogni festa: controllare che il progetto Supabase non sia in pausa.
-- Docker serve solo per lo stack locale: chiudibile, non serve alla produzione.
-- Nuove modifiche al DB: nuova migrazione in `supabase/migrations/` + `db push`.
+- L'utente rivede i titoli e prova con telefoni veri (iPhone + Android) entro il 2026-09-30,
+  soprattutto la fotocamera e "Condividi" su iPhone.
+- Prima di ogni festa: controllare che Supabase non sia in pausa.
 
 ## Trappole
-- Supabase gratuito va in pausa dopo 7 giorni senza traffico: riattivarlo prima di ogni festa.
-- Il workflow di deploy fallisce finché GitHub Pages non è abilitato.
-- Lo stack locale richiede Docker Desktop acceso (`npm run db:start` da `web/`).
-- Se si cambia `default-catalog.ts`, rigenerare `seed.sql` con `npm run db:seed`.
-- Niente Python e niente `gh` su questa macchina: usare Node e git.
-- Gli input devono restare ≥ 16px (zoom di iOS).
+- Vite: `.env.production` vince su `.env.local`. Il file locale si chiama
+  `web/.env.development.local`. Per provare una build sul locale usare
+  `npx vite build --mode development`.
+- La CLI Supabase non riesegue un seed già applicato: i dati necessari in produzione vanno in
+  una migrazione.
+- Cancellare righe dalla dashboard lascia file orfani nel bucket `photos`.
+- Docker serve solo per sviluppare (stack locale), non per l'app online.
+- Niente Python e niente `gh` su questa macchina; PowerShell blocca `npx` (usare `npx.cmd` o
+  `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`).
+- Input ≥ 16px (zoom di iOS). iOS non vibra.
