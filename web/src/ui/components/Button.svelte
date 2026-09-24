@@ -4,12 +4,13 @@
 
   interface Props extends Omit<HTMLButtonAttributes, 'class'> {
     variant?: 'primary' | 'ghost' | 'danger';
+    size?: 'regular' | 'small';
     loading?: boolean;
     block?: boolean;
     children: Snippet;
   }
 
-  let { variant = 'primary', loading = false, block = false, disabled, children, ...rest }: Props = $props();
+  let { variant = 'primary', size = 'regular', loading = false, block = false, disabled, children, ...rest }: Props = $props();
 </script>
 
 <button
@@ -17,6 +18,7 @@
   class="button"
   class:block
   data-variant={variant}
+  data-size={size}
   disabled={disabled || loading}
   aria-busy={loading}
 >
@@ -52,6 +54,12 @@
   .button:disabled {
     opacity: 0.55;
     cursor: default;
+  }
+
+  [data-size='small'] {
+    min-height: 40px;
+    padding: 0 var(--space-4);
+    font-size: var(--text-sm);
   }
 
   .block {

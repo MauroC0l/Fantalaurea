@@ -13,15 +13,6 @@ export function browserStorage(): KeyValueStorage {
   };
 }
 
-export function inMemoryStorage(): KeyValueStorage {
-  const values = new Map<string, string>();
-  return {
-    read: (key) => values.get(key) ?? null,
-    write: (key, value) => void values.set(key, value),
-    remove: (key) => void values.delete(key),
-  };
-}
-
 function attempt<T>(operation: () => T, fallback: T): T {
   try {
     return operation();

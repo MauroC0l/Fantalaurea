@@ -16,10 +16,12 @@
 
   const STEPS: readonly { icon: IconName; title: string; text: string }[] = [
     { icon: 'party', title: 'Iscriviti', text: 'Scegli un nickname divertente e scrivi il tuo nome vero, così tutti ti riconoscono.' },
-    { icon: 'checklist', title: 'Segna le azioni', text: 'Durante la serata premi + quando compi un’azione. L’hai rifatta? Premi di nuovo.' },
+    { icon: 'checklist', title: 'Completa le azioni', text: 'Tocca un’azione per leggerla e segnala come fatta. Ogni azione vale una volta sola: finisce tra le Fatte.' },
+    { icon: 'camera', title: 'Alcune vogliono una foto', text: 'Per certe azioni serve una prova. Le tue foto le vedete solo tu e l’admin.' },
     { icon: 'alert', title: 'Anche i malus', text: 'I malus li segni tu. Il gioco si basa sulla fiducia: niente furbate.' },
-    { icon: 'crown', title: 'Il bonus comune', text: 'Vale per tutti: chi lo segna lo fa comparire come compiuto per ogni giocatore.' },
-    { icon: 'users', title: 'Guarda chi gioca', text: 'Nella sezione Partecipanti vedi chi c’è e quante azioni ha fatto.' },
+    { icon: 'crown', title: 'Il bonus comune', text: 'Vale per tutti: chi lo segna lo fa comparire come fatto per ogni giocatore.' },
+    { icon: 'undo', title: 'Hai sbagliato?', text: 'Dalle Fatte puoi annullare un’azione: torna tra quelle da fare.' },
+    { icon: 'users', title: 'Guarda chi gioca', text: 'Nella sezione Partecipanti vedi chi c’è e quante azioni ha completato.' },
   ];
 </script>
 

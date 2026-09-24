@@ -1,8 +1,8 @@
-import { addAction, type AddActionError } from '../../application/add-action';
 import type { EveningAdmin, GameBoard, WriteFailure } from '../../application/ports';
+import { saveAction, type ActionTarget, type SaveActionError } from '../../application/save-action';
 import type { Action, ActionDraft } from '../../domain/action';
 import type { AdminSession } from '../../domain/player';
-import type { Result } from '../../domain/result';
+import { ok, type Result } from '../../domain/result';
 import type { LoadStatus } from '../game/game-state.svelte';
 
 export class AdminState {
@@ -15,9 +15,9 @@ export class AdminState {
   readonly #admin: EveningAdmin;
   #unsubscribe: (() => void) | null = null;
 
-  constructor(board: GameBoard, admin: EveningAdmin, session: AdminSession) {
-    this.#board = board;
-    this.#admin = admin;
+  constructor(deps: { board: GameBoard; admin: EveningAdmin }, session: AdminSession) {
+    this.#board = deps.board;
+    this.#admin = deps.admin;
     this.session = session;
   }
 
@@ -37,12 +37,17 @@ export class AdminState {
     this.#unsubscribe = null;
   }
 
-  add(draft: ActionDraft): Promise<Result<Action, AddActionError>> {
-    return addAction(this.#admin, this.session, draft);
+  save(target: ActionTarget, draft: ActionDraft): Promise<Result<void, SaveActionError>> {
+    return saveAction(this.#admin, this.session, target, draft);
   }
 
   remove(action: Action): Promise<Result<void, WriteFailure>> {
     return this.#admin.removeAction(this.session, action.id);
+  }
+
+  async photoCount(): Promise<Result<number, WriteFailure>> {
+    const album = await this.#admin.album(this.session);
+    return album.ok ? ok(album.value.length) : album;
   }
 
   resetEvening(): Promise<Result<void, WriteFailure>> {

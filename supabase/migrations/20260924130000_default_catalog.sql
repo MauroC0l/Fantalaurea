@@ -1,0 +1,31 @@
+-- The evening's default action list (titles and photo policies chosen on 2026-09-24).
+-- The admin edits it from the app; change it here only for brand-new databases.
+insert into public.actions (id, title, description, kind, points, photo_policy) values
+  ('bonus-petto-nudo', 'Petto nudo', 'Fai mettere a petto nudo uno dei festeggiati.', 'bonus', 10, 'required'),
+  ('bonus-shottino', 'Shottino offerto', 'Fai bere uno shottino a uno dei festeggiati.', 'bonus', 2, 'none'),
+  ('bonus-verticale', 'La verticale', 'Fai eseguire una verticale a uno dei festeggiati durante la festa.', 'bonus', 20, 'required'),
+  ('bonus-selfie-drink', 'Selfie da paparazzo', 'Scatta un selfie senza farti vedere mentre uno dei festeggiati sta bevendo il suo drink.', 'bonus', 4, 'required'),
+  ('bonus-foto-intima', 'Il gioiello di famiglia', 'Scatta una foto al cazzo di uno dei festeggiati durante la serata.', 'bonus', 30, 'optional'),
+  ('bonus-scambio-scarpe', 'Scarpe scambiate', 'Costringi i festeggiati a scambiarsi tra loro le scarpe per la serata.', 'bonus', 10, 'required'),
+  ('bonus-autografo', 'Autografo sul braccio', 'Fai firmare un autografo dal festeggiato direttamente sul braccio di uno sconosciuto.', 'bonus', 15, 'required'),
+  ('bonus-selfie-pelato', 'Selfie con il pelato', 'Scatta un selfie epico con uno dei festeggiati insieme a un pelato (no pelo).', 'bonus', 20, 'required'),
+  ('bonus-lento', 'Lento con un oggetto', 'Fai ballare al festeggiato un lento passionale con un oggetto non animato.', 'bonus', 10, 'required'),
+  ('bonus-brindisi-prof', 'Brindisi al prof', 'Fai fare al festeggiato un brindisi urlato dedicato al professore che gli ha fatto buttare più il sangue.', 'bonus', 5, 'none'),
+  ('bonus-tesi-passante', 'Tesi al passante', 'Fai spiegare la tesi a un passante.', 'bonus', 15, 'required'),
+  ('bonus-scusa-assurda', 'Scusa assurda', 'Convinci il festeggiato a farsi offrire da bere inventando una scusa totalmente assurda.', 'bonus', 10, 'none'),
+  ('bonus-elemosina', 'Elemosina per il caffè', 'Fai elemosinare al festeggiato 50 centesimi dai passanti per pagarsi un caffè domani.', 'bonus', 15, 'none'),
+  ('bonus-canzone', 'Canzone a squarciagola', 'Fai cantare a squarciagola una canzone a cappella a uno dei festeggiati.', 'bonus', 10, 'none'),
+  ('bonus-merlino', 'Sono Merlino', 'Costringi uno dei festeggiati a urlare in mezzo al locale “Ragazzi sono Merlino non fidatevi di lui”.', 'bonus', 15, 'none'),
+  ('bonus-cavallo', 'Fai cavallo', 'Fai cavallo a un festeggiato.', 'bonus', 10, 'none'),
+  ('common-vomito', 'Il grande vomito', 'Il festeggiato vomita prima di mezzanotte o in un luogo pubblico decisamente non consono. Vale per tutti.', 'common', 100, 'none'),
+  ('malus-rifiuto', 'Penitenza rifiutata', 'Il festeggiato si rifiuta categoricamente di affrontare una penitenza o di bere uno shottino.', 'malus', -10, 'none'),
+  ('malus-skill-issue', 'Skill issue', 'Farsi dire “Skill Issue” da Lollo.', 'malus', -5, 'none'),
+  ('malus-bacio-pietro', 'Il bacio di Pietro', 'Farsi dare un bacio da Pietro.', 'malus', -10, 'none'),
+  ('malus-sgamato', 'Paparazzo sgamato', 'Vieni clamorosamente sgamato mentre cerchi di fare una foto di nascosto per il Fantalaurea.', 'malus', -10, 'none'),
+  ('malus-cibo-terra', 'Cibo a terra', 'Fai cadere cibo o drink a terra (aura negativa, skill issue).', 'malus', -10, 'none'),
+  ('malus-scroccone', 'Scroccone', 'Farsi offrire un drink da un festeggiato.', 'malus', -10, 'none'),
+  ('malus-pianto', 'Festeggiato in lacrime', 'Far piangere uno dei festeggiati.', 'malus', -20, 'none'),
+  ('malus-clash-royale', 'Clash Royale in disparte', 'Vieni beccato a giocare a Clash Royale in disparte invece di fare baldoria (vale in coppia).', 'malus', -15, 'none'),
+  ('malus-parlare', 'Parlare del Fantalaurea', 'Parli del Fantalaurea.', 'malus', -5, 'none'),
+  ('malus-cavallo-subito', 'Ti fanno cavallo', 'Ti fanno cavallo.', 'malus', -10, 'none')
+on conflict (id) do nothing;

@@ -38,6 +38,7 @@
   }
 
   .text {
+    flex: 1;
     display: grid;
     gap: var(--space-2);
     min-width: 0;

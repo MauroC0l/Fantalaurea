@@ -1,15 +1,17 @@
 <script lang="ts">
   import type { Tone } from '../tone';
 
-  let { tone }: { tone: Tone } = $props();
+  let { tone, spread = 1 }: { tone: Tone; spread?: number } = $props();
 
-  const PARTICLES = 14;
-  const particles = Array.from({ length: PARTICLES }, (_, index) => ({
-    angle: (360 / PARTICLES) * index + Math.random() * 18,
-    distance: 30 + Math.random() * 26,
-    size: 4 + Math.random() * 5,
-    shade: index % 3,
-  }));
+  const PARTICLES = 18;
+  const particles = $derived(
+    Array.from({ length: PARTICLES }, (_, index) => ({
+      angle: (360 / PARTICLES) * index + Math.random() * 18,
+      distance: (30 + Math.random() * 26) * spread,
+      size: (4 + Math.random() * 5) * Math.sqrt(spread),
+      shade: index % 3,
+    })),
+  );
 </script>
 
 <span class="burst" data-tone={tone} aria-hidden="true">

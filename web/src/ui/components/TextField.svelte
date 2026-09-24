@@ -100,7 +100,7 @@
 
   .multiline {
     height: auto;
-    min-height: 120px;
+    min-height: 150px;
     padding-top: var(--space-7);
     padding-bottom: var(--space-3);
     line-height: var(--leading-normal);

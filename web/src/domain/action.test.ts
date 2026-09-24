@@ -1,16 +1,29 @@
 import { describe, expect, it } from 'vitest';
-import { validateActionDraft } from './action';
+import { validateActionDraft, type ActionDraft } from './action';
+
+const draft = (overrides: Partial<ActionDraft>): ActionDraft => ({
+  title: 'Titolo',
+  description: 'Descrizione',
+  kind: 'bonus',
+  photoPolicy: 'none',
+  ...overrides,
+});
 
 describe('validateActionDraft', () => {
-  it('normalizes spacing and keeps the kind', () => {
-    expect(validateActionDraft({ label: '  Balla   sul tavolo ', kind: 'malus' })).toEqual({
+  it('normalizes spacing and keeps kind and photo policy', () => {
+    expect(validateActionDraft(draft({ title: '  Balla  ', description: ' sul   tavolo ', photoPolicy: 'required' }))).toEqual({
       ok: true,
-      value: { label: 'Balla sul tavolo', kind: 'malus' },
+      value: { title: 'Balla', description: 'sul tavolo', kind: 'bonus', photoPolicy: 'required' },
     });
   });
 
-  it('rejects labels that are too short or too long', () => {
-    expect(validateActionDraft({ label: ' ab ', kind: 'bonus' })).toEqual({ ok: false, error: 'too-short' });
-    expect(validateActionDraft({ label: 'x'.repeat(201), kind: 'bonus' })).toEqual({ ok: false, error: 'too-long' });
+  it('reports every invalid text field', () => {
+    expect(validateActionDraft(draft({ title: 'x', description: 'y'.repeat(301) }))).toEqual({
+      ok: false,
+      error: [
+        { field: 'title', reason: 'too-short' },
+        { field: 'description', reason: 'too-long' },
+      ],
+    });
   });
 });

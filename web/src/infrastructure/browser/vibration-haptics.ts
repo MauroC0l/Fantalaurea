@@ -2,6 +2,7 @@ import type { HapticPattern, Haptics } from '../../application/ports';
 
 const PATTERNS: Record<HapticPattern, number | number[]> = {
   tap: 12,
+  success: [18, 40, 30],
   warning: [24, 60, 24],
 };
 

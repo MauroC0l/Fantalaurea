@@ -1,26 +1,37 @@
 # features
 
-Le schermate e lo stato di gioco lato interfaccia.
+Le schermate e il loro stato.
 
-## Contenuto
-- `rules/RulesScreen`: regole. Con `onjoin` è il benvenuto del primo accesso (con il pulsante
-  "Partecipa"); senza, è la pagina "Regole" della tab bar.
-- `join/JoinScreen`: iscrizione o rientro (stesso nickname + stesso nome = rientro).
-- `actions/ActionsScreen` + `ActionCard`: elenco delle azioni con filtro Tutte/Bonus/Malus,
-  contatori, vibrazione, uscita con conferma (il token si dimentica, i dati restano).
-- `participants/ParticipantsScreen`: partecipanti ordinati per azioni fatte, aggiornati in
-  tempo reale.
-- `admin/AdminScreen` + `AddActionDialog` + `admin-state.svelte.ts`: pannello admin (aggiunta
-  ed eliminazione di azioni con conferma, azzeramento della serata, uscita).
-- `game/game-state.svelte.ts`: `GameState`, lo stato reattivo di una partita:
-  - l'aggiornamento è ottimistico (il numero cambia subito);
-  - le scritture sono in coda per azione (tocchi rapidi non arrivano in ordine sbagliato);
-  - se una scrittura fallisce si riallinea ai dati del backend;
-  - si risincronizza a ogni notifica `onChange` (anche il catalogo, se l'admin lo cambia);
-  - se il giocatore sparisce (serata azzerata) chiama `onSessionLost`.
+## Giocatore
+- `rules/RulesScreen`: regole. Con `onjoin` è il benvenuto del primo accesso; senza, è la tab
+  "Regole".
+- `join/JoinScreen`: iscrizione, rientro o accesso admin.
+- `actions/ActionsScreen`: barra di avanzamento, filtro Tutte / Bonus / Malus / Fatte, uscita.
+  Coordina le finestre di conferma (foto, annulla, elimina foto, esci) e il visore.
+  - `ActionItem`: azione chiusa (titolo) che si apre in una tendina con descrizione e
+    pulsanti "Fatta!" / "Fatta, con foto" / "Scatta la foto e completa".
+  - `CompletedItem`: azione fatta, con ora, miniatura della propria foto, "Annulla",
+    "Elimina foto", "Aggiungi foto".
+  - `PhotoConfirmDialog`: anteprima della foto prima dell'invio.
+- `participants/ParticipantsScreen`: partecipanti ordinati per azioni completate.
+- `game/game-state.svelte.ts`: `GameState`, lo stato della serata del giocatore (`todo`,
+  `done`, foto proprie, operazioni in corso per azione). Si risincronizza a ogni `onChange`;
+  chiede i link delle foto solo quando cambiano o stanno per scadere. Se il giocatore non
+  esiste più chiama `onSessionLost`.
+
+## Admin
+- `admin/AdminActionsScreen` + `ActionEditorDialog`: lista azioni, crea / modifica (titolo,
+  descrizione, tipo, politica foto), elimina, "Termina e ricomincia" con promemoria delle
+  foto se l'album non è vuoto.
+- `admin/AlbumScreen` + `album-state.svelte.ts`: griglia di miniature, visore con
+  condividi / scarica / elimina, "Prepara" → condividi tutte o ZIP.
+- `admin/admin-state.svelte.ts`: catalogo e numero di partecipanti in tempo reale.
+
+## Condivisi
+- `labels.ts`: etichette di tipo e politica foto, formato dell'ora.
 
 ## Relazioni
-- Dipende da: `application/` (use case e porte: `GameBoard`, `EveningAdmin`), `domain/`, `ui/`.
+- Dipende da: `application/`, `domain/`, `ui/`.
 - Usato da: `app/` (`App.svelte`).
 - Ascolta: `GameBoard.onChange`.
-- Dati posseduti: stato in memoria della partita (`GameState`) o del pannello (`AdminState`).
+- Dati posseduti: stato in memoria di partita, pannello e album.

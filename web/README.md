@@ -10,14 +10,20 @@ Scelte e motivazioni: [ADR 0001](../docs/adr/0001-frontend-svelte-typescript-spa
 |---|---|
 | `npm run dev` | server di sviluppo, raggiungibile anche dal telefono sulla stessa Wi-Fi (`http://<IP del PC>:5173`) |
 | `npm test` | test automatici (Vitest) |
+| `npm run test:db` | test d'integrazione contro il Supabase locale (lo azzera) |
 | `npm run check` | controllo dei tipi (svelte-check + tsc) |
 | `npm run build` | build statica in `dist/` |
-| `npm run db:start` / `db:reset` / `db:stop` / `db:seed` | database locale, vedi [supabase/](../supabase/README.md) |
+| `npm run db:start` / `db:reset` / `db:stop` | database locale, vedi [supabase/](../supabase/README.md) |
+| `npm run db:deploy` | carica migrazioni e funzione `photos` sul progetto di produzione |
 
 ## Backend usato
-- Con `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY` definite: Supabase. `.env.local` (non
-  versionato) punta allo stack locale; `.env.production` al progetto cloud.
-- Senza: backend in memoria del browser (solo per provare le schermate).
+Sempre Supabase (ADR 0009), configurato da `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY`:
+- `.env.development.local` (non versionato): stack locale, per `npm run dev` e per
+  `vite build --mode development`;
+- `.env.production`: progetto cloud, per `npm run build`.
+
+Attenzione: Vite dà priorità a `.env.production` su `.env.local`, per questo il file locale
+si chiama `.env.development.local`.
 
 ## Pubblicazione
 Ogni push su `main` avvia [.github/workflows/deploy.yml](../.github/workflows/deploy.yml):
