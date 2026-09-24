@@ -1,0 +1,84 @@
+:root {
+  color-scheme: dark;
+
+  --color-bg: #0a0612;
+  --color-bg-glow-1: rgb(255 61 139 / 0.28);
+  --color-bg-glow-2: rgb(168 85 247 / 0.3);
+  --color-bg-glow-3: rgb(34 211 238 / 0.18);
+  --color-surface: rgb(255 255 255 / 0.055);
+  --color-surface-strong: rgb(255 255 255 / 0.1);
+  --color-surface-overlay: rgb(20 12 34 / 0.72);
+  --color-border: rgb(255 255 255 / 0.09);
+  --color-border-strong: rgb(255 255 255 / 0.2);
+  --color-text: #f7f2ff;
+  --color-text-muted: rgb(247 242 255 / 0.66);
+  --color-text-subtle: rgb(247 242 255 / 0.42);
+  --color-on-accent: #16061f;
+
+  --color-accent-1: #ff3d8b;
+  --color-accent-2: #a855f7;
+  --color-accent-3: #22d3ee;
+  --gradient-party: linear-gradient(115deg, var(--color-accent-1), var(--color-accent-2) 52%, var(--color-accent-3));
+
+  --color-bonus: #3ef0a6;
+  --color-malus: #ff5470;
+  --color-common: #ffc53d;
+  --color-danger: var(--color-malus);
+
+  --avatar-1: linear-gradient(135deg, #ff3d8b, #ff9a3d);
+  --avatar-2: linear-gradient(135deg, #a855f7, #22d3ee);
+  --avatar-3: linear-gradient(135deg, #3ef0a6, #22d3ee);
+  --avatar-4: linear-gradient(135deg, #ffc53d, #ff3d8b);
+  --avatar-5: linear-gradient(135deg, #22d3ee, #6366f1);
+  --avatar-6: linear-gradient(135deg, #f472b6, #a855f7);
+
+  --font-display: 'Unbounded', system-ui, sans-serif;
+  --font-body: 'Manrope', system-ui, sans-serif;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  /* 16px minimum on inputs stops iOS Safari from zooming on focus. */
+  --text-md: 1rem;
+  --text-lg: 1.1875rem;
+  --text-xl: 1.625rem;
+  --text-2xl: clamp(2.25rem, 11vw, 3.25rem);
+  --weight-regular: 500;
+  --weight-bold: 700;
+  --weight-black: 800;
+  --leading-tight: 1.15;
+  --leading-normal: 1.45;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  --radius-sm: 10px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
+  --radius-pill: 999px;
+
+  --blur-glass: 18px;
+  --shadow-card: 0 10px 30px rgb(0 0 0 / 0.35);
+  --shadow-glow: 0 8px 32px rgb(255 61 139 / 0.35);
+  --focus-ring: 0 0 0 3px rgb(168 85 247 / 0.55);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-fast: 140ms;
+  --duration-base: 260ms;
+  --duration-slow: 650ms;
+
+  --tap-size: 44px;
+  --content-max: 560px;
+  --tabbar-height: 68px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+
+  --z-tabbar: 10;
+  --z-burst: 20;
+  --z-toast: 30;
+}

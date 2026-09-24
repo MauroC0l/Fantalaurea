@@ -1,0 +1,23 @@
+# features
+
+Le schermate e lo stato di gioco lato interfaccia.
+
+## Contenuto
+- `rules/RulesScreen`: regole. Con `onjoin` è il benvenuto del primo accesso (con il pulsante
+  "Partecipa"); senza, è la pagina "Regole" della tab bar.
+- `join/JoinScreen`: iscrizione o rientro (stesso nickname + stesso nome = rientro).
+- `actions/ActionsScreen` + `ActionCard`: elenco delle azioni con filtro Tutte/Bonus/Malus,
+  contatori, vibrazione.
+- `participants/ParticipantsScreen`: partecipanti ordinati per azioni fatte, aggiornati in
+  tempo reale.
+- `game/game-state.svelte.ts`: `GameState`, lo stato reattivo di una partita:
+  - l'aggiornamento è ottimistico (il numero cambia subito);
+  - le scritture sono in coda per azione (tocchi rapidi non arrivano in ordine sbagliato);
+  - se una scrittura fallisce si riallinea ai dati del backend;
+  - si risincronizza a ogni notifica `onChange`.
+
+## Relazioni
+- Dipende da: `application/` (use case e porte), `domain/`, `ui/`.
+- Usato da: `app/` (`App.svelte`).
+- Ascolta: `GameBoard.onChange`.
+- Dati posseduti: stato in memoria della partita in corso (`GameState`).
