@@ -40,7 +40,9 @@ e la serata. Prima festa: **2026-10-02**.
 - Schema + seed caricati e verificati via API: 27 azioni, RLS ok, database svuotato dopo
   la prova.
 - `web/.env.production` versionato con URL e chiave publishable.
-- GitHub Pages abilitato dall'utente. URL: https://maurocol.github.io/Fantalaurea/
+- GitHub Pages abilitato dall'utente. URL: https://mauroc0l.github.io/Fantalaurea/ (username con lo ZERO)
+- Verificato in produzione (2026-09-24): 3 browser separati, tempo reale ok; dati di prova
+  eliminati (27 azioni, 0 partecipanti).
 
 ## Prossimi passi
 - Prova con telefoni veri (iPhone + Android, più persone insieme) entro il 2026-09-30.
