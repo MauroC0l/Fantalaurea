@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
   import type { WriteFailure } from '../../application/ports';
-  import { PHOTO_LIMIT, photosOf, type ProfilePhoto } from '../../domain/profile';
+  import { deedsOf, PHOTO_LIMIT, photosOf, type ProfilePhoto } from '../../domain/profile';
   import Avatar from '../../ui/components/Avatar.svelte';
   import Button from '../../ui/components/Button.svelte';
   import EmptyState from '../../ui/components/EmptyState.svelte';
@@ -59,6 +59,7 @@
   const stats = $derived(game.participants.find((p) => p.player.id === profile.playerId));
   const rank = $derived(game.rankOf(profile.playerId));
   const photos = $derived(data ? photosOf(data) : []);
+  const deeds = $derived(data ? deedsOf(data) : []);
 
   onMount(() => {
     void profile.start();
@@ -185,19 +186,22 @@
     </section>
 
     <section class="section">
-      <h2>Azioni completate <span class="count">{data.completions.length}</span></h2>
-      {#if data.completions.length === 0}
+      <h2>Azioni completate <span class="count">{deeds.length}</span></h2>
+      {#if deeds.length === 0}
         <p class="muted">Ancora nessuna azione.</p>
       {:else}
         <ScrollArea maxHeight="min(420px, 55dvh)" label="Azioni completate">
         <ul class="actions">
-          {#each data.completions as completion (completion.id)}
+          {#each deeds as completion (completion.id)}
             <li>
               <Surface tone={completion.kind}>
                 <div class="action">
                   <span class="action-text">
                     <span class="action-title">{completion.title}</span>
-                    <span class="muted">alle {formatTime(completion.completedAt)}</span>
+                    <span class="muted">
+                      {#if completion.timed}<span class="timed"><Icon name="clock" size={12} /> A tempo</span> ·{/if}
+                      alle {formatTime(completion.at)}
+                    </span>
                   </span>
                   <PointsPill points={completion.points} />
                 </div>
@@ -359,6 +363,14 @@
     display: grid;
     min-width: 0;
     font-size: var(--text-sm);
+  }
+
+  .timed {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    color: var(--color-common);
+    font-weight: var(--weight-bold);
   }
 
   .action-title {

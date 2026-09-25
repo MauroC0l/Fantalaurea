@@ -359,13 +359,23 @@
   {#key router.current}
     <div in:fade={{ duration: duration('base') }}>
       {#if playerScreen === 'azioni'}
-        <ActionsScreen game={app.game} links={app.links} haptics={deps.haptics}>
-          {#snippet top()}
-            {#if app.kind === 'playing' && features.challenges}
-              <ChallengesSection challenges={app.challenges} links={app.links} canCreate={app.game.permissions.challenges} />
-            {/if}
-          {/snippet}
-        </ActionsScreen>
+        {@const challenges = app.challenges}
+        {@const links = app.links}
+        {@const canCreateChallenges = app.game.permissions.challenges}
+        {#snippet timedBoard()}
+          <ChallengesSection {challenges} {links} canCreate={canCreateChallenges} />
+        {/snippet}
+        {#snippet timedDone()}
+          <ChallengesSection {challenges} {links} canCreate={false} view="mine" />
+        {/snippet}
+        <ActionsScreen
+          game={app.game}
+          links={app.links}
+          haptics={deps.haptics}
+          timed={features.challenges
+            ? { todo: challenges.todo, done: challenges.mine.length, total: challenges.challenges.length, board: timedBoard, doneList: timedDone }
+            : undefined}
+        />
       {:else if playerScreen === 'classifica'}
         <ParticipantsScreen game={app.game} links={app.links} />
       {:else if playerScreen === 'sondaggi'}

@@ -7,6 +7,7 @@ import type { ChangeSignals } from './change-signals';
 
 // Shape returned by the polls RPC (supabase/migrations, polls).
 interface PollJson extends PollRules {
+  closeWhenAllVoted: boolean;
   id: string;
   question: string;
   creator: { id: string; nickname: string } | null;
@@ -48,7 +49,8 @@ export class SupabasePolls implements Polls {
       p_results: draft.rules.results,
       p_vote_change: draft.rules.voteChange,
       p_duration_minutes: draft.durationMinutes,
-      p_close_when_all_voted: draft.rules.closeWhenAllVoted,
+      // The user meant "automatic" as "timed" (ADR 0021): closing on the last vote is not offered.
+      p_close_when_all_voted: false,
     });
     if (error) return err('unavailable');
     const reply = data as { status: 'ok'; pollId: string } | { status: 'unauthorized' | 'forbidden' | 'rejected' | 'disabled' };
@@ -88,7 +90,6 @@ function toPoll(json: PollJson): Poll {
       multiple: json.multiple,
       results: json.results,
       voteChange: json.voteChange,
-      closeWhenAllVoted: json.closeWhenAllVoted,
     },
     closesAt: json.closesAt ? new Date(json.closesAt) : null,
     closed: json.closed,

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import type { FeedSection } from '../../domain/feed';
+  import SegmentedControl from '../../ui/components/SegmentedControl.svelte';
   import { PHOTO_LIMIT_MESSAGE } from '../labels';
   import { onDestroy } from 'svelte';
   import { flip } from 'svelte/animate';
@@ -39,6 +41,11 @@
     | { kind: 'delete'; item: FeedItem };
 
   let dialog = $state<OpenDialog>({ kind: 'none' });
+
+  const SECTIONS: readonly { value: FeedSection; label: string }[] = [
+    { value: 'posts', label: 'Post' },
+    { value: 'deeds', label: 'Imprese' },
+  ];
   let publishing = $state(false);
   let now = $state(new Date());
   let sentinel = $state<HTMLElement>();
@@ -124,6 +131,8 @@
     {/snippet}
   </ScreenHeader>
 
+  <SegmentedControl label="Sezione della bacheca" options={SECTIONS} bind:value={() => feed.section, (section) => void feed.show(section)} />
+
   {#if feed.status === 'loading'}
     <Loader label="Carico la bacheca…" />
   {:else if feed.status === 'failed'}
@@ -132,7 +141,7 @@
     </EmptyState>
   {:else if feed.items.length === 0}
     <EmptyState icon="party" title="La festa sta iniziando">
-      <p>Pubblica la prima foto o completa un'azione: comparirà qui.</p>
+      <p>{feed.section === 'posts' ? 'Pubblica la prima foto: comparirà qui.' : 'Completa un’azione o una sfida: comparirà qui.'}</p>
     </EmptyState>
   {:else}
     <ul class="list">

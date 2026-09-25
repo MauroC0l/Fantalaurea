@@ -6,6 +6,8 @@ export const CHALLENGE_DESCRIPTION_MAX = 300;
 export const CHALLENGE_POINTS_MAX = 100;
 /** Offered durations, in minutes. */
 export const CHALLENGE_DURATIONS: readonly number[] = [5, 10, 15, 30, 60];
+/** Longest custom duration, in minutes (the server checks the same). */
+export const CHALLENGE_DURATION_MAX = 720;
 /** null = everyone who makes it in time. */
 export const CHALLENGE_WINNERS: readonly (number | null)[] = [null, 1, 3, 5, 10];
 
@@ -14,6 +16,16 @@ export interface ChallengeWinner {
   readonly nickname: string;
   readonly avatarId: string | null;
   readonly at: Date;
+}
+
+/** One of those who did a challenge, in order of arrival. */
+export interface ChallengeCompleter {
+  readonly id: string;
+  readonly nickname: string;
+  readonly avatarId: string | null;
+  readonly at: Date;
+  readonly rank: number;
+  readonly earned: boolean;
 }
 
 export interface Challenge {

@@ -76,7 +76,6 @@
     <h2 class="question">{poll.question}</h2>
     <p class="rules">
       {poll.rules.anonymous ? 'Anonimo' : 'Voto palese'} · {poll.rules.multiple ? 'più scelte' : 'una scelta'}
-      {#if poll.rules.closeWhenAllVoted && open} · si chiude quando votano tutti{/if}
     </p>
 
     {#if voting}

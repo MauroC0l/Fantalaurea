@@ -26,7 +26,7 @@ import type { Action, ActionDraft } from '../../domain/action';
 import type { Completion } from '../../domain/completion';
 import type { AccessLogEntry, JoinRequest } from '../../domain/evening';
 import type { FeatureName, Features } from '../../domain/features';
-import type { FeedItem, Liker } from '../../domain/feed';
+import type { FeedItem, FeedSection, Liker } from '../../domain/feed';
 import type { AdminSession, ManagedPlayer, Participant, Permission, Permissions, PlayerSession, Session } from '../../domain/player';
 import type { Profile } from '../../domain/profile';
 import { err, ok, type Result } from '../../domain/result';
@@ -64,7 +64,7 @@ interface ParticipantRow {
 }
 interface FeedRow {
   item_id: string;
-  item_kind: 'post' | 'completion';
+  item_kind: 'post' | 'completion' | 'challenge';
   created_at: string;
   player_id: string;
   nickname: string;
@@ -101,6 +101,7 @@ interface ProfileJson {
     completedAt: string;
   }[];
   posts: { id: string; photoId: string; caption: string; createdAt: string }[];
+  challenges: { id: string; challengeId: string; title: string; points: number; completedAt: string; earned: boolean }[];
 }
 
 const INVALID_TEXT_REPRESENTATION = '22P02';
@@ -182,11 +183,12 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     }));
   }
 
-  async feed(session: Session, before: Date | null): Promise<readonly FeedItem[]> {
+  async feed(session: Session, section: FeedSection, before: Date | null): Promise<readonly FeedItem[]> {
     const rows = await this.#read<FeedRow[]>('feed', {
       p_token: session.token,
       p_before: before?.toISOString() ?? null,
       p_limit: FEED_PAGE_SIZE,
+      p_section: section,
     });
     return rows.map(toFeedItem);
   }
@@ -198,6 +200,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
       ...json.player,
       photoCount: json.photoCount === null ? null : Number(json.photoCount),
       completions: json.completions.map((c) => ({ ...c, completedAt: new Date(c.completedAt) })),
+      challenges: json.challenges.map((c) => ({ ...c, completedAt: new Date(c.completedAt) })),
       posts: json.posts.map((p) => ({ ...p, createdAt: new Date(p.createdAt) })),
     };
   }
@@ -501,6 +504,7 @@ function toFeedItem(row: FeedRow): FeedItem {
     : {
         ...base,
         kind: 'completion',
+        timed: row.item_kind === 'challenge',
         photoId: row.photo_id,
         action: { title: row.action_title!, kind: row.action_kind!, points: row.action_points! },
       };

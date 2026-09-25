@@ -7,6 +7,8 @@ export const POLL_OPTIONS_MIN = 2;
 export const POLL_OPTIONS_MAX = 10;
 /** Durations offered when creating a poll, in minutes; null = until closed by hand. */
 export const POLL_DURATIONS: readonly (number | null)[] = [null, 5, 15, 30, 60, 120];
+/** Longest custom duration, in minutes (the server checks the same). */
+export const POLL_DURATION_MAX = 1440;
 
 /** When the others see how the votes are going. */
 export type ResultsVisibility = 'always' | 'after-vote' | 'after-close';
@@ -16,8 +18,6 @@ export interface PollRules {
   readonly multiple: boolean;
   readonly results: ResultsVisibility;
   readonly voteChange: boolean;
-  /** Closes by itself once every player has voted. */
-  readonly closeWhenAllVoted: boolean;
 }
 
 export interface PollDraft {
@@ -66,7 +66,6 @@ export const DEFAULT_POLL_RULES: PollRules = {
   multiple: false,
   results: 'after-vote',
   voteChange: true,
-  closeWhenAllVoted: false,
 };
 
 /** The draft as it will be sent: trimmed, empty options dropped. */

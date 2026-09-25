@@ -12,6 +12,7 @@
 <script lang="ts">
   import {
     CHALLENGE_DESCRIPTION_MAX,
+    CHALLENGE_DURATION_MAX,
     CHALLENGE_DURATIONS,
     CHALLENGE_POINTS_MAX,
     CHALLENGE_TITLE_MAX,
@@ -21,6 +22,7 @@
   } from '../../domain/challenge';
   import Button from '../../ui/components/Button.svelte';
   import ChipGroup from '../../ui/components/ChipGroup.svelte';
+  import DurationPicker from '../../ui/components/DurationPicker.svelte';
   import Dialog from '../../ui/components/Dialog.svelte';
   import Icon from '../../ui/components/Icon.svelte';
   import TextField from '../../ui/components/TextField.svelte';
@@ -42,12 +44,16 @@
   let description = $state('');
   let points = $state(20);
   let winnersLimit = $state<number | null>(null);
-  let minutes = $state<number | null>(15);
+  /** A preset, "keep" (null, editing only) or "custom" (the picker below). */
+  let choice = $state<number | null | 'custom'>(15);
+  let customMinutes = $state(45);
+  const minutes = $derived(choice === 'custom' ? customMinutes : choice);
 
   const editing = $derived(target !== null && target !== 'new');
   const durations = $derived([
-    ...(editing ? [{ value: null, label: 'Non cambiare' }] : []),
-    ...CHALLENGE_DURATIONS.map((m) => ({ value: m as number | null, label: m < 60 ? `${m} min` : `${m / 60} h` })),
+    ...(editing ? [{ value: null as number | null | 'custom', label: 'Non cambiare' }] : []),
+    ...CHALLENGE_DURATIONS.map((m) => ({ value: m as number | null | 'custom', label: m < 60 ? `${m} min` : `${m / 60} h` })),
+    { value: 'custom' as const, label: 'Personalizzata' },
   ]);
   const MESSAGES: Record<ChallengeDraftError, string> = {
     'title-too-short': 'Scrivi un titolo',
@@ -64,7 +70,8 @@
     description = source?.description ?? '';
     points = source?.points ?? 20;
     winnersLimit = source?.winnersLimit ?? null;
-    minutes = source ? null : 15;
+    choice = source ? null : 15;
+    customMinutes = 45;
   });
 </script>
 
@@ -101,8 +108,11 @@
 
   <div class="group">
     <p class="group-title">{editing ? 'Tempo' : 'Durata'}</p>
-    <ChipGroup options={durations} bind:value={minutes} label="Durata della sfida" />
-    {#if editing && minutes !== null}<p class="hint">Riparte da adesso: {minutes} minuti.</p>{/if}
+    <ChipGroup options={durations} bind:value={choice} label="Durata della sfida" />
+    {#if choice === 'custom'}
+      <DurationPicker bind:value={customMinutes} max={CHALLENGE_DURATION_MAX} label="Durata personalizzata" />
+    {/if}
+    {#if editing && minutes !== null}<p class="hint">Riparte da adesso.</p>{/if}
   </div>
 
   {#if errors.length > 0}

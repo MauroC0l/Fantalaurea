@@ -30,9 +30,25 @@
 
   let viewing = $state<{ photo: AlbumPhoto; file: NamedFile | null } | null>(null);
   let confirmingDelete = $state(false);
+  /** The "save everything" dialog: explanation, automatic ZIPs, or one share per group (iPhone). */
+  let saving = $state<{ step: 'explain' | 'zip' | 'share' } | null>(null);
+
+  const zipCount = $derived(album.parts.length);
+  const busyExporting = $derived(album.preparation !== null || saving?.step === 'zip');
+
+  async function downloadAll() {
+    saving = { step: 'zip' };
+    try {
+      await album.downloadAll();
+      toasts.show(zipCount === 1 ? 'ZIP scaricato' : `Fatto: ${zipCount} ZIP scaricati`);
+      saving = null;
+    } catch {
+      toasts.show('Non sono riuscito a scaricare tutte le foto: riprova', 'error');
+      saving = { step: 'explain' };
+    }
+  }
   let deleting = $state(false);
 
-  const canSharePart = $derived(album.prepared !== null && album.exporter.canShare(album.prepared.files));
   const canShareOne = $derived(viewing?.file ? album.exporter.canShare([viewing.file]) : false);
   const viewingIndex = $derived(viewing ? album.photos.findIndex((p) => p.id === viewing?.photo.id) : -1);
   const hasPrevious = $derived(viewingIndex > 0);
@@ -119,41 +135,9 @@
     <Surface>
       <div class="export">
         <p class="export-title">Salva tutte le foto</p>
-        {#if album.parts.length > 1}
-          <p class="hint">
-            Sono {album.photos.length}: le salvi a gruppi di {EXPORT_PART_SIZE}, uno alla volta, così il telefono non si
-            blocca.
-          </p>
-        {/if}
-        {#each album.parts as part (part.index)}
-          <div class="part" class:single={album.parts.length === 1}>
-            {#if album.parts.length > 1}
-              <p class="part-title">Parte {part.index + 1} · foto {part.from}–{part.to}</p>
-            {/if}
-            {#if album.preparation?.part === part.index}
-              <p class="hint">Preparo le foto… {album.preparation.done}/{album.preparation.total}</p>
-              <ProgressBar value={album.preparation.done} max={album.preparation.total} label="Foto preparate" />
-            {:else if album.prepared?.part === part.index}
-              {@const files = album.prepared.files}
-              <div class="buttons">
-                {#if canSharePart}
-                  <Button block onclick={() => share(files)}><Icon name="share" size={20} /> Condividi {files.length} foto</Button>
-                {/if}
-                <Button block variant="ghost" onclick={() => album.exporter.downloadZip(files, album.zipName(part.index))}>
-                  <Icon name="download" size={20} /> Scarica ZIP
-                </Button>
-              </div>
-            {:else}
-              <Button block variant={album.parts.length > 1 ? 'ghost' : 'primary'} disabled={album.preparation !== null} onclick={() => prepare(part.index)}>
-                <Icon name="download" size={20} /> Prepara {part.to - part.from + 1} foto
-              </Button>
-            {/if}
-          </div>
-        {/each}
-        <p class="hint">
-          Le scarico sul telefono, poi scegli se condividerle o salvarle in uno ZIP. Su iPhone: "Condividi" → "Salva
-          immagini" le mette nel rullino.
-        </p>
+        <Button block onclick={() => (saving = { step: 'explain' })}>
+          <Icon name="download" size={20} /> Scarica tutte ({album.photos.length})
+        </Button>
       </div>
     </Surface>
 
@@ -167,6 +151,66 @@
     </ul>
   {/if}
 </Screen>
+
+{#snippet savingActions()}
+  {#if saving?.step === 'explain'}
+    <Button block onclick={downloadAll}>
+      <Icon name="download" size={20} /> {zipCount === 1 ? 'Scarica lo ZIP' : `Scarica ${zipCount} ZIP`}
+    </Button>
+    <Button block variant="ghost" onclick={() => (saving = { step: 'share' })}>
+      <Icon name="share" size={20} /> Salva nel rullino (iPhone)
+    </Button>
+    <Button block variant="ghost" onclick={() => (saving = null)}>Annulla</Button>
+  {:else if saving?.step === 'share'}
+    <Button block variant="ghost" disabled={album.preparation !== null} onclick={() => (saving = null)}>Chiudi</Button>
+  {/if}
+{/snippet}
+
+<Dialog
+  open={saving !== null}
+  title={saving?.step === 'share' ? 'Salva nel rullino' : `Scaricare ${album.photos.length} foto?`}
+  onclose={() => !busyExporting && (saving = null)}
+  actions={savingActions}
+>
+  {#if saving?.step === 'explain'}
+    {#if zipCount === 1}
+      <p>Le metto tutte in un file ZIP, che trovi nei download.</p>
+    {:else}
+      <p>
+        Le scarico in <strong>{zipCount} file ZIP</strong> da massimo {EXPORT_PART_SIZE} foto, uno dopo l’altro, da solo.
+        Tutte insieme occuperebbero troppa memoria e il telefono chiuderebbe la pagina.
+      </p>
+      <p>Se il browser chiede il permesso di scaricare più file, accetta.</p>
+    {/if}
+  {:else if saving?.step === 'zip'}
+    {#if album.preparation}
+      <p>ZIP {album.preparation.part + 1} di {zipCount}: {album.preparation.done}/{album.preparation.total} foto</p>
+      <ProgressBar value={album.preparation.done} max={album.preparation.total} label="Foto preparate" />
+    {:else}
+      <p>Salvo lo ZIP…</p>
+    {/if}
+  {:else if saving?.step === 'share'}
+    <p>
+      Su iPhone le foto arrivano nel rullino solo da "Condividi" → "Salva immagini", e ogni condivisione vuole un tocco:
+      per questo sono a gruppi di {EXPORT_PART_SIZE}.
+    </p>
+    {#each album.parts as part (part.index)}
+      <div class="part">
+        <p class="part-title">{zipCount === 1 ? 'Tutte le foto' : `Gruppo ${part.index + 1} · foto ${part.from}–${part.to}`}</p>
+        {#if album.preparation?.part === part.index}
+          <ProgressBar value={album.preparation.done} max={album.preparation.total} label="Foto preparate" />
+        {:else if album.prepared?.part === part.index}
+          {@const files = album.prepared.files}
+          <Button block onclick={() => share(files)}><Icon name="share" size={20} /> Condividi {files.length} foto</Button>
+        {:else}
+          <Button block variant="ghost" disabled={album.preparation !== null} onclick={() => prepare(part.index)}>
+            Prepara il gruppo
+          </Button>
+        {/if}
+      </div>
+    {/each}
+  {/if}
+</Dialog>
 
 <Lightbox
   src={viewing?.photo.fullUrl ?? null}
@@ -244,25 +288,13 @@
     border-top: 1px solid var(--color-border);
   }
 
-  .part.single {
-    padding-top: 0;
-    border-top: none;
-  }
 
   .part-title {
     color: var(--color-text);
     font-weight: var(--weight-bold);
   }
 
-  .buttons {
-    display: grid;
-    gap: var(--space-2);
-  }
 
-  .hint {
-    color: var(--color-text-subtle);
-    font-size: var(--text-sm);
-  }
 
   .grid {
     display: grid;

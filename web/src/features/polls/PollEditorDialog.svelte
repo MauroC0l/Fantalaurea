@@ -1,6 +1,7 @@
 <script lang="ts">
   import {
     DEFAULT_POLL_RULES,
+    POLL_DURATION_MAX,
     POLL_DURATIONS,
     POLL_OPTION_MAX,
     POLL_OPTIONS_MAX,
@@ -12,6 +13,7 @@
   } from '../../domain/poll';
   import Button from '../../ui/components/Button.svelte';
   import ChipGroup from '../../ui/components/ChipGroup.svelte';
+  import DurationPicker from '../../ui/components/DurationPicker.svelte';
   import Dialog from '../../ui/components/Dialog.svelte';
   import Icon from '../../ui/components/Icon.svelte';
   import IconButton from '../../ui/components/IconButton.svelte';
@@ -31,17 +33,23 @@
   let question = $state('');
   let options = $state<string[]>(['', '']);
   let rules = $state({ ...DEFAULT_POLL_RULES });
-  let durationMinutes = $state<number | null>(null);
+  /** A preset, "until closed" (null) or "custom" (the picker below). */
+  let choice = $state<number | null | 'custom'>(null);
+  let customMinutes = $state(90);
+  const durationMinutes = $derived(choice === 'custom' ? customMinutes : choice);
 
   const RESULTS: readonly { value: ResultsVisibility; label: string }[] = [
     { value: 'always', label: 'Sempre' },
     { value: 'after-vote', label: 'Dopo il voto' },
     { value: 'after-close', label: 'A fine sondaggio' },
   ];
-  const DURATIONS = POLL_DURATIONS.map((minutes) => ({
-    value: minutes,
-    label: minutes === null ? 'Finché lo chiudo' : minutes < 60 ? `${minutes} min` : `${minutes / 60} h`,
-  }));
+  const DURATIONS = [
+    ...POLL_DURATIONS.map((minutes) => ({
+      value: minutes as number | null | 'custom',
+      label: minutes === null ? 'Finché lo chiudo' : minutes < 60 ? `${minutes} min` : `${minutes / 60} h`,
+    })),
+    { value: 'custom' as const, label: 'Personalizzata' },
+  ];
   const MESSAGES: Record<PollDraftError, string> = {
     'question-too-short': 'Scrivi la domanda',
     'question-too-long': `Domanda troppo lunga (massimo ${POLL_QUESTION_MAX})`,
@@ -57,7 +65,8 @@
     question = '';
     options = ['', ''];
     rules = { ...DEFAULT_POLL_RULES };
-    durationMinutes = null;
+    choice = null;
+    customMinutes = 90;
   });
 
   function save() {
@@ -95,12 +104,6 @@
     <Switch checked={rules.multiple} label="Più scelte" description="Si può votare più di un’opzione" onchange={(v) => (rules.multiple = v)} />
     <Switch checked={rules.anonymous} label="Anonimo" description="Nessuno vede chi ha votato cosa" onchange={(v) => (rules.anonymous = v)} />
     <Switch checked={rules.voteChange} label="Si può cambiare voto" description="Finché il sondaggio è aperto" onchange={(v) => (rules.voteChange = v)} />
-    <Switch
-      checked={rules.closeWhenAllVoted}
-      label="Chiudi quando hanno votato tutti"
-      description="Si chiude da solo all’ultimo voto"
-      onchange={(v) => (rules.closeWhenAllVoted = v)}
-    />
   </div>
 
   <div class="group">
@@ -110,7 +113,10 @@
 
   <div class="group">
     <p class="group-title">Durata</p>
-    <ChipGroup options={DURATIONS} bind:value={durationMinutes} label="Durata del sondaggio" />
+    <ChipGroup options={DURATIONS} bind:value={choice} label="Durata del sondaggio" />
+    {#if choice === 'custom'}
+      <DurationPicker bind:value={customMinutes} max={POLL_DURATION_MAX} label="Durata personalizzata" />
+    {/if}
   </div>
 
   {#if errors.length > 0}

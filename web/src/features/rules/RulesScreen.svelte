@@ -23,25 +23,24 @@
     readonly text: string;
   }
 
+  // Wording chosen by the user (2026-09-25).
   const RULES: readonly Line[] = [
-    { icon: 'key', title: 'Entra', text: 'Serve la parola della serata. Nickname a piacere, nome vero per farti riconoscere.' },
-    { icon: 'checklist', title: 'Fai le azioni', text: 'Ognuna vale una volta. Sbagliato? La annulli dalle Fatte.' },
-    { icon: 'flame', title: 'Punti', text: 'I bonus li danno, i malus li tolgono. Le fiamme dicono quanto è difficile.' },
-    { icon: 'camera', title: 'Prove', text: 'Alcune azioni vogliono una foto.' },
+    { icon: 'checklist', title: 'Azioni', text: 'Esegui le azioni per ottenere i relativi punti: chi ne ha di più vince!' },
+    { icon: 'camera', title: 'Prove', text: 'Alcune azioni richiedono una prova fotografica per essere completate.' },
     { icon: 'crown', title: 'Per tutti', text: 'Il bonus comune, segnato da uno, vale per ogni giocatore.' },
-    { icon: 'alert', title: 'Fiducia', text: 'I malus li segni tu. Niente furbate.' },
   ];
 
-  const EXTRAS: readonly (Line & { readonly feature: FeatureName | null })[] = [
-    { feature: 'feed', icon: 'home', title: 'Bacheca', text: 'Foto e imprese di tutti, con i like.' },
-    { feature: 'chat', icon: 'chat', title: 'Chat', text: 'Messaggi privati, foto e vocali.' },
-    { feature: 'leaderboard', icon: 'trophy', title: 'Classifica', text: 'Chi è in testa, e i profili degli altri.' },
-    { feature: 'challenges', icon: 'clock', title: 'Sfide a tempo', text: 'Bonus che durano pochi minuti: a volte solo per i primi.' },
-    { feature: 'polls', icon: 'poll', title: 'Sondaggi', text: 'Vota e guarda come va.' },
-    { feature: null, icon: 'user', title: 'Profilo', text: 'La tua foto, la bio e le tue foto della serata.' },
+  /** Not rules: things you can do, shown only when switched on. */
+  const POSSIBILITIES: readonly (Line & { readonly feature: FeatureName | null })[] = [
+    { feature: 'challenges', icon: 'clock', title: 'Sfide a tempo', text: 'Bonus che durano pochi minuti' },
+    { feature: 'feed', icon: 'home', title: 'Bacheca', text: 'Post, foto e imprese di tutti' },
+    { feature: 'chat', icon: 'chat', title: 'Chat', text: 'Messaggi, foto e vocali' },
+    { feature: 'polls', icon: 'poll', title: 'Sondaggi', text: 'Vota e guarda come va' },
+    { feature: 'leaderboard', icon: 'trophy', title: 'Classifica', text: 'Chi è in testa' },
+    { feature: null, icon: 'user', title: 'Profilo', text: 'Foto, bio e le tue imprese' },
   ];
 
-  const extras = $derived(EXTRAS.filter((extra) => extra.feature === null || features[extra.feature]));
+  const possibilities = $derived(POSSIBILITIES.filter((p) => p.feature === null || features[p.feature]));
 </script>
 
 {#snippet joinFooter()}
@@ -50,38 +49,39 @@
   </Button>
 {/snippet}
 
-{#snippet lines(items: readonly Line[], offset: number)}
-  <ol class="lines">
-    {#each items as line, index (line.title)}
-      <li in:fly={{ y: 24, duration: duration('slow'), delay: stagger(index + offset, 70), easing }}>
-        <span class="line-icon"><Icon name={line.icon} size={20} /></span>
-        <p><strong>{line.title}.</strong> {line.text}</p>
-      </li>
-    {/each}
-  </ol>
-{/snippet}
-
 <Screen withTabBar={!onjoin} footer={onjoin ? joinFooter : undefined}>
   <section class="hero" in:fly={{ y: 24, duration: duration('slow'), easing }}>
     <p class="eyebrow">{onjoin ? 'Benvenuto alla' : 'Le regole della'}</p>
     <h1>Fanta<br />laurea</h1>
   </section>
 
-  <div in:fly={{ y: 24, duration: duration('slow'), delay: stagger(1, 70), easing }}>
-    <Surface tone="common" highlighted>
-      <p class="goal-label">L’obiettivo</p>
-      <p class="goal">Fare più punti di tutti.</p>
-    </Surface>
-  </div>
-
   <section class="block">
     <h2>Le regole</h2>
-    {@render lines(RULES, 2)}
+    <ol class="rules">
+      {#each RULES as rule, index (rule.title)}
+        <li in:fly={{ y: 24, duration: duration('slow'), delay: stagger(index + 1, 70), easing }}>
+          <span class="rule-icon"><Icon name={rule.icon} size={20} /></span>
+          <p><strong>{rule.title}.</strong> {rule.text}</p>
+        </li>
+      {/each}
+    </ol>
   </section>
 
   <section class="block">
-    <h2>Anche nell’app</h2>
-    {@render lines(extras, RULES.length + 2)}
+    <h2>Possibilità</h2>
+    <ul class="possibilities">
+      {#each possibilities as possibility, index (possibility.title)}
+        <li in:fly={{ y: 24, duration: duration('slow'), delay: stagger(index + RULES.length + 1, 50), easing }}>
+          <Surface>
+            <span class="tile">
+              <span class="tile-icon"><Icon name={possibility.icon} size={22} /></span>
+              <span class="tile-title">{possibility.title}</span>
+              <span class="tile-text">{possibility.text}</span>
+            </span>
+          </Surface>
+        </li>
+      {/each}
+    </ul>
   </section>
 </Screen>
 
@@ -113,21 +113,6 @@
     animation: glow 5s ease-in-out infinite alternate;
   }
 
-  .goal-label {
-    color: var(--color-common);
-    font-size: var(--text-xs);
-    font-weight: var(--weight-black);
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-  }
-
-  .goal {
-    margin-top: var(--space-1);
-    font-family: var(--font-display);
-    font-size: var(--text-lg);
-    line-height: var(--leading-tight);
-  }
-
   .block {
     display: grid;
     gap: var(--space-3);
@@ -139,19 +124,19 @@
     font-weight: var(--weight-black);
   }
 
-  .lines {
+  .rules {
     display: grid;
     gap: var(--space-3);
     list-style: none;
   }
 
-  li {
+  .rules li {
     display: flex;
     gap: var(--space-3);
     align-items: center;
   }
 
-  .line-icon {
+  .rule-icon {
     display: grid;
     place-items: center;
     flex: none;
@@ -163,7 +148,7 @@
     color: var(--color-accent-3);
   }
 
-  li p {
+  .rules p {
     color: var(--color-text-muted);
     line-height: var(--leading-normal);
   }
@@ -171,6 +156,33 @@
   strong {
     color: var(--color-text);
     font-weight: var(--weight-black);
+  }
+
+  /* Possibilities are tiles, not a numbered list: they are options, not duties. */
+  .possibilities {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-2);
+    list-style: none;
+  }
+
+  .tile {
+    display: grid;
+    gap: var(--space-1);
+  }
+
+  .tile-icon {
+    color: var(--color-accent-1);
+  }
+
+  .tile-title {
+    font-weight: var(--weight-black);
+  }
+
+  .tile-text {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    line-height: var(--leading-tight);
   }
 
   @keyframes glow {

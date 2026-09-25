@@ -10,6 +10,7 @@ const ATTEMPTS = 3;
 const TITLE_IN_NAME_MAX = 30;
 // Real photos weigh about 1.5 MB: a whole evening in memory at once would crash a phone's browser.
 export const EXPORT_PART_SIZE = 100;
+const BETWEEN_DOWNLOADS_MS = 800;
 
 export interface Preparation {
   readonly part: number;
@@ -64,6 +65,20 @@ export class AlbumState {
     this.prepared = null;
     this.status = 'ready';
     return { ok: true, value: undefined };
+  }
+
+  /**
+   * Every part as a ZIP, one after the other, each released before the next: one tap for the whole
+   * album. The pause lets the browser handle one download before the next one starts.
+   */
+  async downloadAll(): Promise<void> {
+    for (const part of this.parts) {
+      await this.prepare(part.index);
+      if (!this.prepared) return;
+      this.exporter.downloadZip(this.prepared.files, this.zipName(part.index));
+      this.prepared = null;
+      await new Promise((resolve) => setTimeout(resolve, BETWEEN_DOWNLOADS_MS));
+    }
   }
 
   zipName(part: number): string {

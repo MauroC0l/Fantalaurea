@@ -1,6 +1,10 @@
 <script lang="ts">
   import type { ChallengeFailure, WriteFailure } from '../../application/ports';
-  import type { Challenge, ChallengeDraftError } from '../../domain/challenge';
+  import type { Challenge, ChallengeCompleter, ChallengeDraftError } from '../../domain/challenge';
+  import Avatar from '../../ui/components/Avatar.svelte';
+  import Loader from '../../ui/components/Loader.svelte';
+  import ScrollArea from '../../ui/components/ScrollArea.svelte';
+  import { formatTime } from '../labels';
   import type { Result } from '../../domain/result';
   import ActionSheet, { type SheetItem } from '../../ui/components/ActionSheet.svelte';
   import Button from '../../ui/components/Button.svelte';
@@ -17,9 +21,19 @@
     links: PhotoLinksCache;
     /** The admin, or a player the admin allowed (ADR 0018). */
     canCreate: boolean;
+    /** "board": running and finished, with Nuova; "mine": only those you completed (for "Fatte"). */
+    view?: 'board' | 'mine';
   }
 
-  let { challenges, links, canCreate }: Props = $props();
+  let { challenges, links, canCreate, view = 'board' }: Props = $props();
+
+  let completers = $state<{ challenge: Challenge; list: readonly ChallengeCompleter[] | null } | null>(null);
+
+  async function showCompleters(challenge: Challenge) {
+    completers = { challenge, list: null };
+    const list = await challenges.completers(challenge);
+    if (completers?.challenge.id === challenge.id) completers = { challenge, list: list ?? [] };
+  }
 
   const FINISHED_SHOWN = 3;
 
@@ -82,7 +96,27 @@
   }
 </script>
 
-{#if challenges.challenges.length > 0 || canCreate}
+{#if view === 'mine'}
+  {#if challenges.mine.length > 0}
+    <section class="section" aria-label="Sfide a tempo fatte">
+      <h3 class="subhead"><Icon name="clock" size={14} /> Sfide a tempo</h3>
+      {#each challenges.mine as challenge (challenge.id)}
+        <ChallengeCard
+          {challenge}
+          now={challenges.now}
+          canTakePart={challenges.player !== null}
+          busy={challenges.busy === challenge.id}
+          {links}
+          oncomplete={() => {}}
+          onundo={() => void challenges.undo(challenge).then(report)}
+          onmanage={() => (managing = challenge)}
+          oncompleters={() => showCompleters(challenge)}
+        />
+      {/each}
+      <h3 class="subhead">Azioni</h3>
+    </section>
+  {/if}
+{:else if challenges.challenges.length > 0 || canCreate}
   <section class="section" aria-label="Sfide a tempo">
     <div class="head">
       <h2><Icon name="clock" size={20} /> Sfide a tempo</h2>
@@ -104,6 +138,7 @@
         oncomplete={() => void challenges.complete(challenge).then(report)}
         onundo={() => void challenges.undo(challenge).then(report)}
         onmanage={() => (managing = challenge)}
+        oncompleters={() => showCompleters(challenge)}
       />
     {/each}
 
@@ -119,6 +154,7 @@
           oncomplete={() => {}}
           onundo={() => {}}
           onmanage={() => (managing = challenge)}
+          oncompleters={() => showCompleters(challenge)}
         />
       {/each}
       {#if challenges.finished.length > FINISHED_SHOWN}
@@ -129,6 +165,27 @@
     {/if}
   </section>
 {/if}
+
+<Dialog open={completers !== null} title={completers?.challenge.title ?? ''} onclose={() => (completers = null)}>
+  {#if completers?.list === null}
+    <Loader label="Carico chi l’ha fatta…" />
+  {:else if completers}
+    <ScrollArea maxHeight="55dvh" label="Chi l’ha fatta">
+      <ol class="completers">
+        {#each completers.list ?? [] as person (person.id)}
+          <li class:late={!person.earned}>
+            <span class="rank">{person.rank}°</span>
+            <Avatar name={person.nickname} src={links.get(person.avatarId)?.thumbnailUrl} size="sm" />
+            <span class="who">{person.nickname}</span>
+            <span class="when">{person.earned ? formatTime(person.at) : 'senza punti'}</span>
+          </li>
+        {:else}
+          <li>Ancora nessuno.</li>
+        {/each}
+      </ol>
+    </ScrollArea>
+  {/if}
+</Dialog>
 
 <ChallengeEditorDialog target={editing} {saving} errors={formErrors} onsave={save} onclose={() => (editing = null)} />
 
@@ -166,11 +223,52 @@
   }
 
   .subhead {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
     color: var(--color-text-muted);
     font-size: var(--text-sm);
     font-weight: var(--weight-black);
     text-transform: uppercase;
     letter-spacing: 0.08em;
+  }
+
+  .completers {
+    display: grid;
+    gap: var(--space-2);
+    list-style: none;
+  }
+
+  .completers li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--color-text);
+  }
+
+  .completers li.late {
+    opacity: 0.55;
+  }
+
+  .rank {
+    width: 2.5ch;
+    color: var(--color-text-subtle);
+    font-weight: var(--weight-black);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .who {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: var(--weight-bold);
+  }
+
+  .when {
+    color: var(--color-text-subtle);
+    font-size: var(--text-sm);
   }
 
   .empty {

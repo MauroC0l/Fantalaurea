@@ -4,11 +4,19 @@
     label: string;
   }
 
-  let { options, value = $bindable(), label }: { options: readonly Option[]; value: T; label: string } = $props();
+  interface Props {
+    options: readonly Option[];
+    value: T;
+    label: string;
+    /** One line that scrolls sideways instead of wrapping: for filters above a list. */
+    scroll?: boolean;
+  }
+
+  let { options, value = $bindable(), label, scroll = false }: Props = $props();
 </script>
 
 <!-- A single choice among many short options: wraps on narrow screens, unlike SegmentedControl. -->
-<div class="chips" role="radiogroup" aria-label={label}>
+<div class="chips" class:scroll role="radiogroup" aria-label={label}>
   {#each options as option (option.label)}
     <button
       type="button"
@@ -30,7 +38,21 @@
     gap: var(--space-2);
   }
 
+  .chips.scroll {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Bleeds to the screen edges so the last chip visibly continues off screen. */
+    margin: 0 calc(-1 * var(--space-4));
+    padding: 0 var(--space-4);
+  }
+
+  .chips.scroll::-webkit-scrollbar {
+    display: none;
+  }
+
   .chip {
+    flex: none;
     min-height: 38px;
     padding: 0 var(--space-4);
     border-radius: var(--radius-pill);

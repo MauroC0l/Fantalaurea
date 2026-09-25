@@ -45,7 +45,7 @@
 
     {#if item.kind === 'completion'}
       <p class="event">
-        {VERBS[item.action.kind]}
+        {item.timed ? 'ha vinto la sfida a tempo' : VERBS[item.action.kind]}
         <strong>{item.action.title}</strong>
         <PointsPill points={item.action.points} />
       </p>

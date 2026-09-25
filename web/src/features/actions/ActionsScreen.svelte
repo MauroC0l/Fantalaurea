@@ -15,6 +15,7 @@
   import ProgressBar from '../../ui/components/ProgressBar.svelte';
   import Screen from '../../ui/components/Screen.svelte';
   import ScreenHeader from '../../ui/components/ScreenHeader.svelte';
+  import ChipGroup from '../../ui/components/ChipGroup.svelte';
   import SegmentedControl from '../../ui/components/SegmentedControl.svelte';
   import { celebrations } from '../../ui/components/celebrations.svelte';
   import { toasts } from '../../ui/components/toasts.svelte';
@@ -30,22 +31,29 @@
     game: GameState;
     links: PhotoLinksCache;
     haptics: Haptics;
-    /** Shown above the list, e.g. the timed challenges: this screen does not know about them. */
-    top?: Snippet;
+    /**
+     * Timed challenges, when on: their counts join the totals, the "A tempo" filter shows `board`,
+     * "Fatte" starts with `done`. This screen does not know what a challenge is.
+     */
+    timed?: { readonly todo: number; readonly done: number; readonly total: number; readonly board: Snippet; readonly doneList: Snippet };
   }
 
-  let { game, links, haptics, top }: Props = $props();
+  let { game, links, haptics, timed }: Props = $props();
 
-  type Filter = 'all' | 'bonus' | 'malus' | 'done';
+  type Filter = 'all' | 'bonus' | 'malus' | 'timed' | 'done';
+
+  const doneCount = $derived(game.done.length + (timed?.done ?? 0));
+  const totalCount = $derived(game.catalog.length + (timed?.total ?? 0));
 
   const FILTERS = $derived<readonly { value: Filter; label: string }[]>([
     { value: 'all', label: 'Tutte' },
     { value: 'bonus', label: 'Bonus' },
     { value: 'malus', label: 'Malus' },
-    { value: 'done', label: `Fatte ${game.done.length}` },
+    ...(timed ? [{ value: 'timed' as const, label: timed.todo > 0 ? `A tempo ${timed.todo}` : 'A tempo' }] : []),
+    { value: 'done', label: `Fatte ${doneCount}` },
   ]);
 
-  const VISIBLE_KINDS: Record<Exclude<Filter, 'done'>, readonly ActionKind[]> = {
+  const VISIBLE_KINDS: Record<Exclude<Filter, 'done' | 'timed'>, readonly ActionKind[]> = {
     all: ['common', 'bonus', 'malus'],
     bonus: ['common', 'bonus'],
     malus: ['malus'],
@@ -69,8 +77,11 @@
   let difficulty = $state<DifficultyFilter>('any');
   let dialog = $state<OpenDialog>({ kind: 'none' });
 
+  // The filter may point to "A tempo" after the admin switched challenges off.
+  const shown = $derived<Filter>(filter === 'timed' && !timed ? 'all' : filter);
+
   const todo = $derived(
-    filter === 'done' ? [] : VISIBLE_KINDS[filter].flatMap((kind) =>
+    shown === 'done' || shown === 'timed' ? [] : VISIBLE_KINDS[shown].flatMap((kind) =>
           game.todo.filter((action) => action.kind === kind && (difficulty === 'any' || action.difficulty === difficulty)),
         ),
   );
@@ -119,12 +130,10 @@
   <ScreenHeader eyebrow="Ciao, {game.session.player.nickname}" title="Le tue azioni">
     <div class="progress">
       <p class="score"><strong>{game.me?.points ?? 0}</strong> punti</p>
-      <p><strong>{game.done.length}</strong> su {game.catalog.length} completate</p>
-      <ProgressBar value={game.done.length} max={game.catalog.length} label="Azioni completate" />
+      <p><strong>{doneCount}</strong> su {totalCount} completate</p>
+      <ProgressBar value={doneCount} max={totalCount} label="Azioni completate" />
     </div>
   </ScreenHeader>
-
-  {#if top}{@render top()}{/if}
 
   {#if game.status === 'loading'}
     <Loader label="Carico le azioni…" />
@@ -136,12 +145,15 @@
       </Button>
     </EmptyState>
   {:else}
-    <SegmentedControl label="Filtra le azioni" options={FILTERS} bind:value={filter} />
-    {#if filter !== 'done'}
+    <ChipGroup label="Filtra le azioni" options={FILTERS} bind:value={filter} scroll />
+    {#if shown !== 'done' && shown !== 'timed'}
       <SegmentedControl label="Filtra per difficoltà" options={DIFFICULTIES} bind:value={difficulty} />
     {/if}
 
-    {#if filter === 'done'}
+    {#if shown === 'timed' && timed}
+      {@render timed.board()}
+    {:else if shown === 'done'}
+      {#if timed}{@render timed.doneList()}{/if}
       <p class="privacy"><Icon name="image" size={16} /> Le foto delle azioni compaiono in bacheca: le vedono tutti i partecipanti.</p>
       <ul class="list">
         {#each game.done as action (action.id)}
@@ -160,11 +172,13 @@
             />
           </li>
         {:else}
-          <li>
-            <EmptyState icon="sparkle" title="Ancora niente">
-              <p>Le azioni che completi finiscono qui.</p>
-            </EmptyState>
-          </li>
+          {#if doneCount === 0}
+            <li>
+              <EmptyState icon="sparkle" title="Ancora niente">
+                <p>Le azioni che completi finiscono qui.</p>
+              </EmptyState>
+            </li>
+          {/if}
         {/each}
       </ul>
     {:else}

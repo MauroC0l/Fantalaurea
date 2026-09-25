@@ -87,7 +87,7 @@ describe('entering the evening', () => {
   it('refuses every read without a valid session', async () => {
     const forged = { role: 'player', token: '00000000-0000-0000-0000-000000000000', inboxKey: 'x', player: { id: 'x', nickname: 'x', realName: 'x' } } as const;
     await expect(backend.catalog(forged)).rejects.toBeInstanceOf(SessionExpiredError);
-    await expect(backend.feed(forged, null)).rejects.toBeInstanceOf(SessionExpiredError);
+    await expect(backend.feed(forged, 'posts', null)).rejects.toBeInstanceOf(SessionExpiredError);
   });
 
   it('lets the admin change the word, keeping or sending out who is inside', async () => {
@@ -138,14 +138,15 @@ describe('feed, likes and profiles', () => {
     await backend.complete(alice, 'bonus-shottino');
     expect(await backend.createPost(bob, photo(), 'Che serata')).toEqual({ ok: true, value: undefined });
 
-    const feed = await backend.feed(alice, null);
-    expect(feed.map((item) => item.kind)).toEqual(['post', 'completion']);
+    const feed = await backend.feed(alice, 'posts', null);
+    expect(feed.map((item) => item.kind)).toEqual(['post']);
+    expect((await backend.feed(alice, 'deeds', null)).map((item) => item.kind)).toEqual(['completion']);
     const post = feed[0];
     expect(post.kind === 'post' && post.caption).toBe('Che serata');
 
     expect(await backend.toggleLike(alice, post.id)).toEqual({ ok: true, value: { liked: true } });
     expect((await backend.likers(bob, post.id)).map((l) => l.nickname)).toEqual(['Alice']);
-    expect((await backend.feed(bob, null))[0].likes).toEqual({ count: 1, likedByMe: false });
+    expect((await backend.feed(bob, 'posts', null))[0].likes).toEqual({ count: 1, likedByMe: false });
     expect(await backend.toggleLike(alice, post.id)).toEqual({ ok: true, value: { liked: false } });
   });
 
@@ -153,7 +154,7 @@ describe('feed, likes and profiles', () => {
     const alice = await asPlayer('Alice');
     const bob = await asPlayer('Bob');
     await backend.completeWithPhoto(alice, 'bonus-verticale', photo());
-    const photoId = (await backend.feed(bob, null))[0].photoId!;
+    const photoId = (await backend.feed(bob, 'deeds', null))[0].photoId!;
     const links = await backend.links(bob, [photoId, '00000000-0000-0000-0000-000000000000']);
     expect([...links.keys()]).toEqual([photoId]);
     expect((await fetch(links.get(photoId)!.thumbnailUrl)).status).toBe(200);
@@ -179,7 +180,7 @@ describe('feed, likes and profiles', () => {
     const bob = await asPlayer('Bob');
     await backend.createPost(alice, photo(), 'uno');
     await backend.createPost(alice, photo(), 'due');
-    const [second, first] = await backend.feed(bob, null);
+    const [second, first] = await backend.feed(bob, 'posts', null);
 
     expect(await backend.deletePost(bob, first.id)).toEqual({ ok: false, error: 'rejected' });
     expect(await backend.deletePost(alice, first.id)).toEqual({ ok: true, value: undefined });
@@ -187,7 +188,7 @@ describe('feed, likes and profiles', () => {
     const album = await backend.album(admin);
     expect(album.ok && album.value.map((p) => [p.source, p.title])).toEqual([['post', 'due']]);
     expect(await backend.deletePhoto(admin, second.photoId!)).toEqual({ ok: true, value: { undone: false } });
-    expect(await backend.feed(bob, null)).toEqual([]);
+    expect(await backend.feed(bob, 'posts', null)).toEqual([]);
   });
 
   it('empties everything and draws a new word when the evening is reset', async () => {
@@ -254,13 +255,13 @@ describe('users', () => {
     const alice = await asPlayer('Alice');
     const bob = await asPlayer('Bob');
     await backend.createPost(alice, photo(), 'ciao');
-    expect(await backend.feed(bob, null)).toHaveLength(1);
+    expect(await backend.feed(bob, 'posts', null)).toHaveLength(1);
 
     expect(await backend.setBlocked(admin, alice.player.id, true)).toEqual({ ok: true, value: undefined });
     await expect(backend.participants(alice)).rejects.toBeInstanceOf(SessionExpiredError);
     expect(await backend.join(request('Alice'))).toEqual({ ok: false, error: { kind: 'blocked' } });
     expect(await backend.join(request('Alice2', 'Alice Real'))).toEqual({ ok: false, error: { kind: 'blocked' } });
-    expect(await backend.feed(bob, null)).toEqual([]);
+    expect(await backend.feed(bob, 'posts', null)).toEqual([]);
     expect((await backend.participants(bob)).map((p) => p.player.nickname)).toEqual(['Bob']);
     expect(await backend.profile(bob, alice.player.id)).toBeNull();
     expect(await chat.open(bob, alice.player.id)).toEqual({ ok: false, error: 'rejected' });
@@ -269,7 +270,7 @@ describe('users', () => {
 
     await backend.setBlocked(admin, alice.player.id, false);
     expect((await backend.join(request('Alice'))).ok).toBe(true);
-    expect(await backend.feed(bob, null)).toHaveLength(1);
+    expect(await backend.feed(bob, 'posts', null)).toHaveLength(1);
   });
 
   it('lets the admin allow single players to create polls and challenges', async () => {
@@ -328,17 +329,17 @@ describe('polls', () => {
     expect((await polls.list(admin))[0].options[0].votes).toBe(2);
   });
 
-  it('keeps the first vote when changes are off, and closes itself once everyone voted', async () => {
+  it('keeps the first vote when changes are off, and refuses votes once closed', async () => {
     const alice = await asPlayer('Alice');
     const bob = await asPlayer('Bob');
-    await polls.create(admin, draft({ voteChange: false, closeWhenAllVoted: true }));
+    await polls.create(admin, { ...draft({ voteChange: false }), durationMinutes: 30 });
     const [poll] = await polls.list(alice);
+    expect(poll.closesAt).not.toBeNull();
     await polls.vote(alice, poll.id, [poll.options[0].id]);
     expect(await polls.vote(alice, poll.id, [poll.options[1].id])).toEqual({ ok: false, error: 'locked' });
-    await polls.vote(bob, poll.id, [poll.options[1].id]);
+    await polls.close(admin, poll.id);
     expect((await polls.list(alice))[0].closed).toBe(true);
-    const carl = await asPlayer('Carl');
-    expect(await polls.vote(carl, poll.id, [poll.options[0].id])).toEqual({ ok: false, error: 'closed' });
+    expect(await polls.vote(bob, poll.id, [poll.options[0].id])).toEqual({ ok: false, error: 'closed' });
   });
 
   it('is closed or deleted only by its creator or the admin, and follows the switch', async () => {
@@ -409,6 +410,25 @@ describe('challenges', () => {
     const before = await pointsOf(alice);
     await challenges.remove(admin, challenge.id);
     expect(await pointsOf(alice)).toBe(before - 30);
+  });
+
+  it('lists everyone who did it, shows it in the profile and among the feed\'s deeds', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    await challenges.create(admin, { ...draft(1), durationMinutes: 600 });
+    const [challenge] = await challenges.list(alice);
+    await challenges.complete(alice, challenge.id);
+    await challenges.update(admin, challenge.id, { title: 'Trenino', description: '', points: 20, winnersLimit: null, extendMinutes: null });
+    await challenges.complete(bob, challenge.id);
+    await challenges.update(admin, challenge.id, { title: 'Trenino', description: '', points: 20, winnersLimit: 1, extendMinutes: null });
+    expect((await challenges.completers(bob, challenge.id)).map((c) => [c.nickname, c.rank, c.earned])).toEqual([
+      ['Alice', 1, true],
+      ['Bob', 2, false],
+    ]);
+    expect((await backend.profile(bob, bob.player.id))?.challenges).toMatchObject([{ title: 'Trenino', earned: false }]);
+    const [deed] = await backend.feed(bob, 'deeds', null);
+    expect(deed).toMatchObject({ kind: 'completion', timed: true, action: { title: 'Trenino' } });
+    expect(await backend.toggleLike(alice, deed.id)).toEqual({ ok: true, value: { liked: true } });
   });
 
   it('follows the switch', async () => {

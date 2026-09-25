@@ -4,6 +4,7 @@ import {
   openFor,
   validateChallenge,
   type Challenge,
+  type ChallengeCompleter,
   type ChallengeDraft,
   type ChallengeDraftError,
   type ChallengeEdit,
@@ -30,6 +31,8 @@ export class ChallengesState {
   readonly finished = $derived(this.challenges.filter((c) => !isRunning(c, this.now)));
   /** Running challenges this player can still do. */
   readonly todo = $derived(openFor(this.challenges, this.now));
+  /** Those this player completed, for the "Fatte" list. */
+  readonly mine = $derived(this.challenges.filter((c) => c.mine !== null));
 
   readonly session: Session;
   readonly #challenges: Challenges;
@@ -88,6 +91,16 @@ export class ChallengesState {
     } catch (error) {
       if (error instanceof SessionExpiredError) this.#onSessionLost();
       else if (this.status === 'loading') this.status = 'failed';
+    }
+  }
+
+  /** Everyone who did it: read on demand, the list can be long. */
+  async completers(challenge: Challenge): Promise<readonly ChallengeCompleter[] | null> {
+    try {
+      return await this.#challenges.completers(this.session, challenge.id);
+    } catch (error) {
+      if (error instanceof SessionExpiredError) this.#onSessionLost();
+      return null;
     }
   }
 

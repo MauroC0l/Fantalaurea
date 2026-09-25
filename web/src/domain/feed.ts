@@ -27,9 +27,14 @@ export interface PostItem extends FeedItemBase {
   readonly caption: string;
 }
 
-/** Created automatically when someone completes an action. */
+/** The feed's two sections: posts, and "imprese" (completed actions and timed challenges). */
+export type FeedSection = 'posts' | 'deeds';
+
+/** Created automatically when someone completes an action or a timed challenge. */
 export interface CompletionItem extends FeedItemBase {
   readonly kind: 'completion';
+  /** A timed challenge rather than an action of the list. */
+  readonly timed: boolean;
   readonly photoId: string | null;
   readonly action: { readonly title: string; readonly kind: ActionKind; readonly points: number };
 }

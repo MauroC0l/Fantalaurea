@@ -8,12 +8,12 @@ import {
   type WriteFailure,
 } from '../../application/ports';
 import { publishPost, type PublishError } from '../../application/social';
-import { mergeFeed, withLike, type FeedItem, type Liker } from '../../domain/feed';
+import { mergeFeed, withLike, type FeedItem, type FeedSection, type Liker } from '../../domain/feed';
 import type { PlayerSession } from '../../domain/player';
 import type { Result } from '../../domain/result';
 import type { LoadStatus } from '../game/game-state.svelte';
 
-const RELEVANT: ReadonlySet<ChangedTable> = new Set(['posts', 'likes', 'player_completions', 'shared_completions', 'players']);
+const RELEVANT: ReadonlySet<ChangedTable> = new Set(['posts', 'likes', 'player_completions', 'shared_completions', 'players', 'challenges']);
 
 export interface FeedDependencies {
   readonly board: GameBoard;
@@ -25,6 +25,7 @@ export interface FeedDependencies {
 export class FeedState {
   status = $state<LoadStatus>('loading');
   items = $state.raw<readonly FeedItem[]>([]);
+  section = $state<FeedSection>('posts');
   hasMore = $state(true);
   loadingMore = $state(false);
 
@@ -56,12 +57,23 @@ export class FeedState {
     this.#unsubscribe = null;
   }
 
+  /** Another section starts from its newest page. */
+  async show(section: FeedSection): Promise<void> {
+    if (section === this.section) return;
+    this.section = section;
+    this.items = [];
+    this.hasMore = true;
+    this.status = 'loading';
+    await this.#refresh();
+    if (this.status === 'loading') this.status = 'ready';
+  }
+
   async loadMore(): Promise<void> {
     const oldest = this.items.at(-1);
     if (!this.hasMore || this.loadingMore || !oldest) return;
     this.loadingMore = true;
     try {
-      const page = await this.#deps.board.feed(this.session, oldest.createdAt);
+      const page = await this.#deps.board.feed(this.session, this.section, oldest.createdAt);
       this.hasMore = page.length === FEED_PAGE_SIZE;
       this.items = mergeFeed(this.items, page);
     } catch (error) {
@@ -113,7 +125,10 @@ export class FeedState {
 
   /** Reloads the first page; items that disappeared from it (undone, deleted) go away too. */
   async #loadNewest(): Promise<void> {
-    const page = await this.#deps.board.feed(this.session, null);
+    const section = this.section;
+    const page = await this.#deps.board.feed(this.session, section, null);
+    // The user switched section while this page was on its way: it belongs to the other one.
+    if (section !== this.section) return;
     // A short page is the whole feed: nothing older to keep.
     const complete = page.length < FEED_PAGE_SIZE;
     const oldestInPage = page.at(-1)?.createdAt.getTime() ?? Infinity;

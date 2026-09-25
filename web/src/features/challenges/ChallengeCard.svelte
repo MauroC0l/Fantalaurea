@@ -20,9 +20,10 @@
     oncomplete: () => void;
     onundo: () => void;
     onmanage: () => void;
+    oncompleters: () => void;
   }
 
-  let { challenge, now, canTakePart, busy, links, oncomplete, onundo, onmanage }: Props = $props();
+  let { challenge, now, canTakePart, busy, links, oncomplete, onundo, onmanage, oncompleters }: Props = $props();
 
   const running = $derived(isRunning(challenge, now));
   const spots = $derived(spotsLeft(challenge));
@@ -53,13 +54,14 @@
     <p class="who">{who}</p>
 
     {#if challenge.winners.length > 0}
-      <div class="winners">
+      <button class="winners" onclick={oncompleters}>
         <AvatarStack
           label="Chi l’ha fatta"
           people={challenge.winners.map((w) => ({ id: w.id, nickname: w.nickname, src: links.get(w.avatarId)?.thumbnailUrl }))}
         />
         <span class="count">{challenge.completions === 1 ? '1 l’ha fatta' : `${challenge.completions} l’hanno fatta`}</span>
-      </div>
+        <Icon name="chevronRight" size={16} />
+      </button>
     {/if}
 
     {#if canTakePart}
@@ -124,6 +126,8 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    color: var(--color-text-muted);
+    text-align: left;
   }
 
   .count {

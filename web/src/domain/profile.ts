@@ -21,6 +21,17 @@ export interface ProfilePost {
   readonly createdAt: Date;
 }
 
+/** A timed challenge the player completed (ADR 0021). */
+export interface ProfileChallenge {
+  readonly id: string;
+  readonly challengeId: string;
+  readonly title: string;
+  readonly points: number;
+  readonly completedAt: Date;
+  /** false when the player came after the first N. */
+  readonly earned: boolean;
+}
+
 export interface Profile {
   readonly id: string;
   readonly nickname: string;
@@ -30,6 +41,7 @@ export interface Profile {
   /** Only on your own profile: how many of the PHOTO_LIMIT you use. */
   readonly photoCount: number | null;
   readonly completions: readonly ProfileCompletion[];
+  readonly challenges: readonly ProfileChallenge[];
   readonly posts: readonly ProfilePost[];
 }
 
@@ -50,4 +62,29 @@ export function photosOf(profile: Profile): ProfilePhoto[] {
 
 export function isValidBio(bio: string): boolean {
   return [...bio.trim()].length <= BIO_MAX;
+}
+
+/** Something a player did: an action of the list or a timed challenge, for the profile. */
+export interface Deed {
+  readonly id: string;
+  readonly title: string;
+  readonly kind: ActionKind;
+  /** What it gave: 0 for a challenge completed after the first N. */
+  readonly points: number;
+  readonly at: Date;
+  readonly timed: boolean;
+}
+
+/** Actions and timed challenges together, newest first. */
+export function deedsOf(profile: Profile): Deed[] {
+  const actions = profile.completions.map((c) => ({ id: c.id, title: c.title, kind: c.kind, points: c.points, at: c.completedAt, timed: false }));
+  const challenges = profile.challenges.map((c) => ({
+    id: c.id,
+    title: c.title,
+    kind: 'bonus' as const,
+    points: c.earned ? c.points : 0,
+    at: c.completedAt,
+    timed: true,
+  }));
+  return [...actions, ...challenges].sort((a, b) => b.at.getTime() - a.at.getTime());
 }

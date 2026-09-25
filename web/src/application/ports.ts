@@ -3,9 +3,9 @@ import type { ChatMessage, ChatPeer, ConversationSummary, DeleteScope, VoiceReco
 import type { Completion } from '../domain/completion';
 import type { AccessLogEntry, JoinRequest } from '../domain/evening';
 import type { FeatureName, Features } from '../domain/features';
-import type { FeedItem, Liker } from '../domain/feed';
+import type { FeedItem, FeedSection, Liker } from '../domain/feed';
 import type { AdminSession, ManagedPlayer, Participant, Permission, Permissions, PlayerSession, Session } from '../domain/player';
-import type { Challenge, ChallengeDraft, ChallengeEdit } from '../domain/challenge';
+import type { Challenge, ChallengeCompleter, ChallengeDraft, ChallengeEdit } from '../domain/challenge';
 import type { Poll, PollDraft } from '../domain/poll';
 import type { Profile } from '../domain/profile';
 import type { Result } from '../domain/result';
@@ -69,7 +69,7 @@ export interface GameBoard {
   completionsOf(session: PlayerSession): Promise<readonly Completion[]>;
   participants(session: Session): Promise<readonly Participant[]>;
   /** Newest first, older than `before` when given. */
-  feed(session: Session, before: Date | null): Promise<readonly FeedItem[]>;
+  feed(session: Session, section: FeedSection, before: Date | null): Promise<readonly FeedItem[]>;
   profile(session: Session, playerId: string): Promise<Profile | null>;
   likers(session: Session, targetId: string): Promise<readonly Liker[]>;
   features(session: Session): Promise<Features>;
@@ -242,6 +242,8 @@ export type ChallengeFailure = FeatureFailure | 'forbidden' | 'ended' | 'full';
 /** Timed challenges (ADR 0020). Reads reject like GameBoard's. */
 export interface Challenges {
   list(session: Session): Promise<readonly Challenge[]>;
+  /** Everyone who did it, not only the first N. */
+  completers(session: Session, challengeId: string): Promise<readonly ChallengeCompleter[]>;
   create(session: Session, draft: ChallengeDraft): Promise<Result<string, ChallengeFailure>>;
   update(session: Session, challengeId: string, edit: ChallengeEdit): Promise<Result<void, WriteFailure>>;
   end(session: Session, challengeId: string): Promise<Result<void, WriteFailure>>;

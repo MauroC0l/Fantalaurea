@@ -1,6 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SessionExpiredError, type ChallengeFailure, type Challenges, type WriteFailure } from '../../application/ports';
-import type { Challenge, ChallengeDraft, ChallengeEdit } from '../../domain/challenge';
+import type { Challenge, ChallengeCompleter, ChallengeDraft, ChallengeEdit } from '../../domain/challenge';
 import type { PlayerSession, Session } from '../../domain/player';
 import { err, ok, type Result } from '../../domain/result';
 import type { ChangeSignals } from './change-signals';
@@ -37,6 +37,21 @@ export class SupabaseChallenges implements Challenges {
     const { data, error } = await this.#client.rpc('challenges', { p_token: session.token });
     if (error) throw error.code === INVALID_AUTHORIZATION ? new SessionExpiredError() : new Error(error.message);
     return (data as ChallengeJson[]).map(toChallenge);
+  }
+
+  async completers(session: Session, challengeId: string): Promise<readonly ChallengeCompleter[]> {
+    const { data, error } = await this.#client.rpc('challenge_completers', { p_token: session.token, p_challenge: challengeId });
+    if (error) throw error.code === INVALID_AUTHORIZATION ? new SessionExpiredError() : new Error(error.message);
+    return (data as { id: string; nickname: string; avatar_id: string | null; completed_at: string; rank: number; earned: boolean }[]).map(
+      (row) => ({
+        id: row.id,
+        nickname: row.nickname,
+        avatarId: row.avatar_id,
+        at: new Date(row.completed_at),
+        rank: Number(row.rank),
+        earned: row.earned,
+      }),
+    );
   }
 
   async create(session: Session, draft: ChallengeDraft): Promise<Result<string, ChallengeFailure>> {
