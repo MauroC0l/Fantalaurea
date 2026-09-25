@@ -60,6 +60,34 @@ segreta. Si usa quasi solo da telefono. Prima festa: **2026-10-02**.
   broadcast generati dal database non arrivano ai canali pubblici del Supabase ospitato:
   ora i segnali partono dai client (ADR 0013, migrazione `20260925150000_client_change_signals.sql`).
 
+## In corso (richiesta dell'utente del 2026-09-25 sera)
+Fatto e in produzione (commit 5f078cf, 5a8fd69):
+- ZIP con nomi brevi (Windows), download dell'album a gruppi con nuovi tentativi;
+- chat come WhatsApp (ADR 0016);
+- pulsante unico "Carica foto" con menu fotocamera/galleria;
+- `ScrollArea`, zoom della foto profilo, regole brevi;
+- Azioni spegnibile, nickname a 20.
+
+Da fare, in quest'ordine (decisioni dell'utente già prese):
+1. URL senza `#` (history API + 404.html per GitHub Pages; riapre ADR 0001).
+2. Schermata admin "Utenti":
+   - blocca / sblocca: esce subito, non rientra con lo stesso nickname o nome vero; i suoi
+     contenuti sono nascosti, non cancellati;
+   - permessi per singolo utente: può creare sondaggi / sfide;
+   - limite di 100 foto esistenti per utente (azioni + post + chat, foto profilo esclusa;
+     cancellare libera il posto).
+3. Sondaggi (funzione spegnibile, sezione "Sondaggi"): li creano l'admin o gli utenti
+   abilitati. Impostazioni per sondaggio: anonimo o no, scelta singola o multipla, quando si
+   vedono i risultati, se si può cambiare voto, chiusura manuale o a tempo. Niente punti.
+4. Sfide a tempo (funzione spegnibile, sezione dentro Azioni): le creano e modificano l'admin
+   o gli utenti abilitati; più sfide insieme; punti a tutti quelli che la completano in
+   tempo, oppure solo ai primi N (impostazione per sfida). Avviso solo a chi ha l'app aperta.
+5. Export dell'album in parti da 100 foto (memoria dei telefoni).
+
+Domande ancora aperte per l'utente:
+- dominio personalizzato al posto di mauroc0l.github.io;
+- cosa intende per chiusura "automatica" di un sondaggio.
+
 ## Prossimi passi
 - L'utente guarda l'interfaccia coi dati finti, poi azzera la serata e toglie le azioni demo.
 - L'utente prova con telefoni veri entro il 2026-09-30 (fotocamera, like, condivisione della
