@@ -2,7 +2,7 @@
   import { onDestroy } from 'svelte';
   import { fade } from 'svelte/transition';
   import { composeApp } from './app/compose';
-  import { HashRouter, hrefTo } from './app/router.svelte';
+  import { PathRouter, hrefTo } from './app/router.svelte';
   import { resumeSession } from './application/resume-session';
   import type { PlayerSession, Session } from './domain/player';
   import ActionsScreen from './features/actions/ActionsScreen.svelte';
@@ -48,7 +48,7 @@
     | { kind: 'administering'; admin: AdminState; album: AlbumState };
 
   const deps = composeApp();
-  const router = new HashRouter();
+  const router = new PathRouter();
   let app = $state<AppState>({ kind: 'booting' });
   let confirmingLogout = $state(false);
 
@@ -99,7 +99,7 @@
   $effect(() => {
     const name = router.current?.name;
     if (app.kind === 'playing' && name && name !== playerScreen && PLAYER_SCREENS.includes(name) && SCREEN_FEATURES[name as PlayerScreen]) {
-      router.go({ name: homeScreen });
+      router.go({ name: homeScreen }, { replace: true });
     }
   });
 
@@ -169,7 +169,7 @@
       const admin = new AdminState(deps, session, () => signOut('Sessione admin scaduta: rientra'));
       app = { kind: 'administering', admin, album: new AlbumState(deps, session) };
       void admin.start();
-      if (router.current?.name !== 'album' && router.current?.name !== 'serata') router.go({ name: 'admin' });
+      if (router.current?.name !== 'album' && router.current?.name !== 'serata') router.go({ name: 'admin' }, { replace: true });
       return;
     }
     play(session);
@@ -185,7 +185,7 @@
     void feed.start();
     chatList.start();
     const name = router.current?.name ?? '';
-    if (!PLAYER_SCREENS.includes(name) || name === 'regole') router.go({ name: 'bacheca' });
+    if (!PLAYER_SCREENS.includes(name) || name === 'regole') router.go({ name: homeScreen }, { replace: true });
   }
 
   function sessionLost() {
@@ -198,7 +198,7 @@
     confirmingLogout = false;
     deps.sessions.clear();
     app = { kind: 'anonymous', secretWord: null };
-    router.go({ name: 'regole' });
+    router.go({ name: 'regole' }, { replace: true });
     if (reason) toasts.show(reason, 'error');
   }
 
@@ -309,7 +309,7 @@
           recorder={deps.recorder}
           haptics={deps.haptics}
           clipboard={deps.clipboard}
-          onback={() => router.go({ name: 'chat' })}
+          onback={() => router.back({ name: 'chat' })}
         />
       {:else if (playerScreen === 'profilo' || playerScreen === 'giocatore') && profile}
         {@const other = profile.playerId}

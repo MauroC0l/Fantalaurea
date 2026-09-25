@@ -1,6 +1,6 @@
 # ADR 0001 — Frontend: SPA in Svelte 5 + TypeScript con Vite
 
-Data: 2026-09-23 · Stato: accettata (scelta delegata a Claude dall'utente: "il più veloce da deployare")
+Data: 2026-09-23 · Stato: accettata (scelta delegata a Claude dall'utente: "il più veloce da deployare") · Il routing via hash è superato dall'ADR 0017 (2026-09-25)
 
 ## Contesto
 App usata al 90% da telefono durante una festa, con grafica animata e componenti al 100%

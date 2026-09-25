@@ -8,12 +8,17 @@ di vita della sessione.
   concrete di `infrastructure/`. Legge `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY`, crea un solo
   client Supabase condiviso da `SupabaseBackend` e `SupabaseChat`, collega il registratore dei
   vocali (`browserVoiceRecorder`, con il limite `VOICE_MAX_MS`) e fissa la qualità delle foto.
-- `router.svelte.ts`: `HashRouter`, che trasforma l'URL in un `Route` (definito in
-  `features/routes.ts`): `#/regole`, `#/parola`, `#/iscrizione`, `#/bacheca`, `#/azioni`,
-  `#/classifica`, `#/profilo`, `#/giocatore/<id>`, `#/chat`, `#/conversazione/<id>`,
-  `#/admin`, `#/album`, `#/serata`. A ogni cambio di rotta torna in cima alla pagina: un solo
-  documento ospita tutte le schermate, e senza questo una schermata nuova si aprirebbe al punto
-  in cui era scorsa la precedente.
+- `router.svelte.ts`: `PathRouter` (ADR 0017), che trasforma il percorso in un `Route`
+  (definito in `features/routes.ts`, sotto `BASE_PATH`): `regole`, `parola`, `iscrizione`,
+  `bacheca`, `azioni`, `classifica`, `profilo`, `giocatore/<id>`, `chat`,
+  `conversazione/<id>`, `admin`, `album`, `serata`.
+  - Usa la History API e intercetta i clic sui link interni (niente ricarica della pagina).
+  - `go(route, { replace })`: `replace` si usa per i reindirizzamenti, così "indietro" non
+    torna a una pagina che reindirizza di nuovo.
+  - `back(fallback)`: torna indietro solo se la pagina precedente è dell'app.
+  - Una pagina nuova si apre dall'alto; "indietro" ritrova il punto di scorrimento salvato
+    nello stato della cronologia.
+  - I vecchi link `#/…` vengono convertiti all'avvio.
 - `../App.svelte`: macchina a stati `booting` → `offline` | `anonymous` (con la parola già
   data, `''` per l'admin, o nessuna) | `playing` | `administering`. Crea gli stati di partita,
   bacheca, lista delle chat, profilo, conversazione aperta e la cache dei link foto, mostra la
@@ -28,4 +33,4 @@ di vita della sessione.
 ## Relazioni
 - Dipende da: tutti gli altri moduli.
 - Usato da: `main.ts`.
-- Dati posseduti: la rotta corrente (hash dell'URL).
+- Dati posseduti: la rotta corrente (percorso dell'URL) e il punto di scorrimento di ogni voce della cronologia.

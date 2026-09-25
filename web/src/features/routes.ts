@@ -29,8 +29,11 @@ export const SIMPLE_ROUTES: readonly RouteName[] = [
   'serata',
 ];
 
+/** Where the app lives, e.g. "/Fantalaurea/" on GitHub Pages (vite.config.ts, BASE_PATH). */
+export const BASE_PATH: string = import.meta.env.BASE_URL;
+
 /** Screens link with hrefs; app/router.svelte.ts turns the URL back into a Route. */
 export function hrefTo(route: Route): string {
-  return 'id' in route ? `#/${route.name}/${route.id}` : `#/${route.name}`;
+  return BASE_PATH + ('id' in route ? `${route.name}/${route.id}` : route.name);
 }
 

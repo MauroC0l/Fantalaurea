@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { BASE_PATH } from '../routes';
   import type { Clipboard, PhotoExporter, WriteFailure } from '../../application/ports';
   import type { Result } from '../../domain/result';
   import Button from '../../ui/components/Button.svelte';
@@ -79,7 +80,7 @@
   }
 
   function invitation(word: string): string {
-    return `Fantalaurea: la parola della serata è «${word}». Entra da ${location.origin}${location.pathname}`;
+    return `Fantalaurea: la parola della serata è «${word}». Entra da ${location.origin}${BASE_PATH}`;
   }
 
   async function copy() {
