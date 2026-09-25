@@ -10,6 +10,8 @@
     hint?: string;
     error?: string;
     maxlength?: number;
+    /** Shows how many characters are left out of maxlength. */
+    counter?: boolean;
     multiline?: boolean;
     autocomplete?: HTMLInputAttributes['autocomplete'];
     autocapitalize?: HTMLInputAttributes['autocapitalize'];
@@ -23,6 +25,7 @@
     hint,
     error,
     maxlength,
+    counter = false,
     multiline = false,
     autocomplete = 'off',
     autocapitalize = 'sentences',
@@ -31,6 +34,7 @@
 
   const id = $derived(`field-${name}`);
   const messageId = $derived(`${id}-message`);
+  const remaining = $derived(maxlength === undefined ? null : maxlength - [...value].length);
 </script>
 
 <div class="field" class:invalid={!!error}>
@@ -70,6 +74,9 @@
     <p class="message error" id={messageId} transition:slide={{ duration: duration('fast') }}>{error}</p>
   {:else if hint}
     <p class="message" id={messageId}>{hint}</p>
+  {/if}
+  {#if counter && remaining !== null}
+    <p class="counter" class:low={remaining < 20}>{remaining}</p>
   {/if}
 </div>
 
@@ -150,6 +157,18 @@
     padding: 0 var(--space-2);
     font-size: var(--text-sm);
     color: var(--color-text-subtle);
+  }
+
+  .counter {
+    justify-self: end;
+    padding: 0 var(--space-2);
+    color: var(--color-text-subtle);
+    font-size: var(--text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .counter.low {
+    color: var(--color-common);
   }
 
   .message.error {

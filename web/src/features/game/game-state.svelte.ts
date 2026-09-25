@@ -1,5 +1,13 @@
 import { completeAction, type CompleteError } from '../../application/complete-action';
-import type { GameBoard, OwnPhoto, PhotoDeletion, PhotoProcessor, PlayerMoves, WriteFailure } from '../../application/ports';
+import {
+  SessionExpiredError,
+  type ChangedTable,
+  type GameBoard,
+  type PhotoDeletion,
+  type PhotoProcessor,
+  type PlayerMoves,
+  type WriteFailure,
+} from '../../application/ports';
 import type { Action } from '../../domain/action';
 import { isOwnedBy, type Completion, type Completions } from '../../domain/completion';
 import { rankParticipants, type Participant, type PlayerSession } from '../../domain/player';
@@ -8,7 +16,7 @@ import { err, type Result } from '../../domain/result';
 export type LoadStatus = 'loading' | 'ready' | 'failed';
 
 export interface GameEvents {
-  /** The backend no longer knows this player, e.g. the admin started a new evening. */
+  /** The backend no longer knows this player: evening reset, or everyone sent out. */
   onSessionLost(): void;
 }
 
@@ -18,8 +26,13 @@ export interface GameDependencies {
   readonly photos: PhotoProcessor;
 }
 
-// Photo links are signed for an hour: renew them a bit earlier.
-const PHOTO_LINKS_MAX_AGE_MS = 50 * 60 * 1000;
+const RELEVANT: ReadonlySet<ChangedTable> = new Set([
+  'actions',
+  'players',
+  'player_completions',
+  'shared_completions',
+  'sessions',
+]);
 
 /** Live view of one player's evening: the actions still to do, those done, and the ranking. */
 export class GameState {
@@ -28,7 +41,6 @@ export class GameState {
   catalog = $state.raw<readonly Action[]>([]);
   completions = $state.raw<Completions>(new Map());
   participants = $state.raw<readonly Participant[]>([]);
-  ownPhotos = $state.raw<ReadonlyMap<string, OwnPhoto>>(new Map());
   busy = $state.raw<ReadonlySet<string>>(new Set());
 
   readonly me = $derived(this.participants.find((p) => p.player.id === this.session.player.id));
@@ -42,8 +54,6 @@ export class GameState {
   readonly #deps: GameDependencies;
   readonly #events: GameEvents;
   #unsubscribe: (() => void) | null = null;
-  #photosKey = '';
-  #photosFetchedAt = 0;
 
   constructor(deps: GameDependencies, session: PlayerSession, events: GameEvents) {
     this.#deps = deps;
@@ -56,15 +66,22 @@ export class GameState {
     try {
       await this.#refreshAll();
       this.status = 'ready';
-      this.#unsubscribe ??= this.#deps.board.onChange(() => void this.#syncQuietly());
-    } catch {
-      this.status = 'failed';
+      this.#unsubscribe ??= this.#deps.board.onChange((table) => {
+        if (RELEVANT.has(table)) void this.#syncQuietly();
+      });
+    } catch (error) {
+      if (error instanceof SessionExpiredError) this.#events.onSessionLost();
+      else this.status = 'failed';
     }
   }
 
   stop(): void {
     this.#unsubscribe?.();
     this.#unsubscribe = null;
+  }
+
+  rankOf(playerId: string): number {
+    return this.participants.findIndex((p) => p.player.id === playerId) + 1;
   }
 
   completionOf(action: Action): Completion | undefined {
@@ -74,10 +91,6 @@ export class GameState {
   canChange(action: Action): boolean {
     const completion = this.completionOf(action);
     return !completion || isOwnedBy(completion, this.session.player.id);
-  }
-
-  photoOf(action: Action): OwnPhoto | undefined {
-    return this.ownPhotos.get(action.id);
   }
 
   isBusy(action: Action): boolean {
@@ -93,9 +106,9 @@ export class GameState {
   }
 
   deletePhoto(action: Action): Promise<Result<PhotoDeletion, WriteFailure>> {
-    const photo = this.photoOf(action);
-    if (!photo) return Promise.resolve(err('rejected'));
-    return this.#run(action, () => this.#deps.moves.deleteOwnPhoto(this.session, photo.id));
+    const photoId = this.completionOf(action)?.photoId;
+    if (!photoId) return Promise.resolve(err('rejected'));
+    return this.#run(action, () => this.#deps.moves.deleteOwnPhoto(this.session, photoId));
   }
 
   async #run<T, E>(action: Action, operation: () => Promise<Result<T, E>>): Promise<Result<T, E>> {
@@ -115,45 +128,21 @@ export class GameState {
   async #syncQuietly(): Promise<void> {
     try {
       await this.#refreshAll();
-    } catch {
-      // The next change notification will try again.
+    } catch (error) {
+      if (error instanceof SessionExpiredError) this.#events.onSessionLost();
+      // Otherwise the next change signal will try again.
     }
   }
 
   async #refreshAll(): Promise<void> {
     const { board } = this.#deps;
     const [catalog, completions, participants] = await Promise.all([
-      board.catalog(),
+      board.catalog(this.session),
       board.completionsOf(this.session),
-      board.participants(),
+      board.participants(this.session),
     ]);
-    if (!participants.some((p) => p.player.id === this.session.player.id)) {
-      this.#events.onSessionLost();
-      return;
-    }
     this.catalog = catalog;
     this.completions = new Map(completions.map((completion) => [completion.actionId, completion]));
     this.participants = rankParticipants(participants);
-    await this.#refreshOwnPhotos(completions);
-  }
-
-  /** Photo links come from an Edge Function: ask only when own photos changed or links are old. */
-  async #refreshOwnPhotos(completions: readonly Completion[]): Promise<void> {
-    const key = completions
-      .filter((c) => c.hasPhoto && isOwnedBy(c, this.session.player.id))
-      .map((c) => `${c.actionId}@${c.completedAt.getTime()}`)
-      .join('|');
-    const fresh = Date.now() - this.#photosFetchedAt < PHOTO_LINKS_MAX_AGE_MS;
-    if (key === this.#photosKey && fresh) return;
-
-    if (key === '') {
-      this.ownPhotos = new Map();
-    } else {
-      const photos = await this.#deps.moves.ownPhotos(this.session);
-      if (!photos.ok) return;
-      this.ownPhotos = new Map(photos.value.map((photo) => [photo.actionId, photo]));
-    }
-    this.#photosKey = key;
-    this.#photosFetchedAt = Date.now();
   }
 }

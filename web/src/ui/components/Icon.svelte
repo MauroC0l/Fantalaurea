@@ -4,16 +4,17 @@
   interface Props {
     name: IconName;
     size?: number;
+    filled?: boolean;
   }
 
-  let { name, size = 22 }: Props = $props();
+  let { name, size = 22, filled = false }: Props = $props();
 </script>
 
 <svg
   width={size}
   height={size}
   viewBox="0 0 24 24"
-  fill="none"
+  fill={filled ? 'currentColor' : 'none'}
   stroke="currentColor"
   stroke-width="2.2"
   stroke-linecap="round"

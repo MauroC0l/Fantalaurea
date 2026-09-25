@@ -1,32 +1,32 @@
 # application
 
-Use case dell'app e interfacce (porte) verso ciò che sta fuori: backend, foto, memoria del
-browser, vibrazione.
+Use case dell'app e interfacce (porte) verso ciò che sta fuori: backend, foto, browser.
 
 ## Porte (`ports.ts`)
 | Porta | Operazioni |
 |---|---|
-| `PlayerAccounts` | `join` (iscrizione, rientro o accesso admin), `resume` |
-| `GameBoard` (letture) | `catalog`, `completionsOf`, `participants`, `onChange` (tempo reale) |
-| `PlayerMoves` (scritture del giocatore) | `complete`, `completeWithPhoto`, `undo`, `deleteOwnPhoto`, `ownPhotos` |
-| `EveningAdmin` | `addAction`, `updateAction`, `removeAction`, `album`, `deletePhoto`, `resetEvening` |
-| `PhotoProcessor` | `prepare`: ricodifica la foto scelta (JPEG, orientamento, dimensione) |
-| `PhotoExporter` | `canShare`, `share`, `download`, `downloadZip` |
-| `SessionStore` | dove si conserva il token |
-| `Haptics` | vibrazione (`tap`, `success`, `warning`) |
+| `PlayerAccounts` | `checkSecretWord`, `join` (parola + identità; l'admin entra senza parola), `resume` |
+| `GameBoard` (letture con token) | `catalog`, `completionsOf`, `participants`, `feed`, `profile`, `likers`, `onChange(tabella)` |
+| `PhotoLinkProvider` | `links`: link firmati per id di foto |
+| `PlayerMoves` | `complete`, `completeWithPhoto`, `undo`, `deleteOwnPhoto`, `toggleLike`, `createPost`, `deletePost`, `updateBio`, `setAvatar` |
+| `EveningAdmin` | azioni (`add`/`update`/`remove`), `album`, `deletePhoto`, `secretWord`, `setSecretWord`, `accessLog`, `resetEvening` |
+| `PhotoProcessor` | `prepare(file, 'original' \| 'square')` |
+| `PhotoExporter` | `canShare`, `share`, `shareText`, `download`, `downloadZip` |
+| `Clipboard`, `SessionStore`, `Haptics` | appunti, token, vibrazione |
 
-Le letture rifiutano la Promise se il backend non risponde; le scritture restituiscono un
-`Result` con il motivo del fallimento.
+Le letture con un token non più valido rifiutano con `SessionExpiredError`, così le
+schermate riportano all'ingresso. Le scritture restituiscono un `Result`.
 
 ## Use case
-- `join-game.ts`: valida l'identità, entra, salva il token.
+- `join-game.ts`: valida l'identità, entra (con la risposta a "sei tu?"), salva il token.
 - `resume-session.ts`: "rientrato", "da iscrivere" oppure "offline" (il token si conserva).
-- `complete-action.ts`: rifiuta subito un'azione con foto obbligatoria senza foto, prepara
-  la foto, sceglie tra completamento semplice e con foto.
-- `save-action.ts`: valida la bozza e crea o modifica un'azione (admin).
+- `complete-action.ts`: foto obbligatoria senza foto → rifiuto immediato; prepara la foto.
+- `save-action.ts`: crea o modifica un'azione (admin).
+- `social.ts`: `publishPost` (didascalia ≤ 300), `changeAvatar` (ritaglio quadrato),
+  `saveBio` (≤ 500).
 
 ## Relazioni
 - Dipende da: `domain/`.
-- Usato da: `features/` (use case e porte), `app/` (composizione).
+- Usato da: `features/`, `app/`.
 - Implementato da: `infrastructure/`.
 - Dati posseduti: nessuno.

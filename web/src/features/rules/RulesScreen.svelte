@@ -15,9 +15,12 @@
   let { onjoin }: Props = $props();
 
   const STEPS: readonly { icon: IconName; title: string; text: string }[] = [
+    { icon: 'key', title: 'Parola della serata', text: 'La festa è a porte chiuse: per entrare serve la parola segreta che ti dà chi organizza.' },
     { icon: 'party', title: 'Iscriviti', text: 'Scegli un nickname divertente e scrivi il tuo nome vero, così tutti ti riconoscono.' },
     { icon: 'checklist', title: 'Completa le azioni', text: 'Tocca un’azione per leggerla e segnala come fatta. Ogni azione vale una volta sola: finisce tra le Fatte.' },
-    { icon: 'camera', title: 'Alcune vogliono una foto', text: 'Per certe azioni serve una prova. Le tue foto le vedete solo tu e l’admin.' },
+    { icon: 'camera', title: 'Alcune vogliono una foto', text: 'Per certe azioni serve una prova: la foto finisce in bacheca, visibile a tutti i partecipanti.' },
+    { icon: 'home', title: 'La bacheca', text: 'Qui compaiono le imprese di tutti e i post con le foto della serata. Metti like e scopri chi li ha messi.' },
+    { icon: 'user', title: 'Il tuo profilo', text: 'Aggiungi una foto e una bio, e guarda i profili degli altri dalla classifica.' },
     { icon: 'alert', title: 'Anche i malus', text: 'I malus li segni tu. Il gioco si basa sulla fiducia: niente furbate.' },
     { icon: 'crown', title: 'Il bonus comune', text: 'Vale per tutti: chi lo segna lo fa comparire come fatto per ogni giocatore.' },
     { icon: 'undo', title: 'Hai sbagliato?', text: 'Dalle Fatte puoi annullare un’azione: torna tra quelle da fare.' },

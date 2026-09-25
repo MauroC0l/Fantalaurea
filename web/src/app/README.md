@@ -5,14 +5,15 @@ di vita della sessione.
 
 ## Contenuto
 - `compose.ts`: `composeApp()` è il composition root, l'unico punto che conosce le classi
-  concrete di `infrastructure/`. Legge `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY` (senza, l'app
-  non parte) e fissa la qualità delle foto (2560 px / 0,9; miniature 480 px).
-- `router.svelte.ts`: `HashRouter` e le rotte `#/regole`, `#/iscrizione`, `#/azioni`,
-  `#/partecipanti`, `#/admin`, `#/album` (routing via hash, ADR 0001).
-- `../App.svelte`: macchina a stati `booting` → `offline` | `anonymous` | `playing` |
-  `administering`, secondo il ruolo della sessione. I giocatori hanno le tab Azioni /
-  Partecipanti / Regole, l'admin Azioni / Album. Se il backend non riconosce più la sessione
-  dimentica il token e torna alle regole.
+  concrete di `infrastructure/`. Legge `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY` e fissa la
+  qualità delle foto.
+- `router.svelte.ts`: `HashRouter`, che trasforma l'URL in un `Route` (definito in
+  `features/routes.ts`): `#/regole`, `#/parola`, `#/iscrizione`, `#/bacheca`, `#/azioni`,
+  `#/classifica`, `#/profilo`, `#/giocatore/<id>`, `#/admin`, `#/album`, `#/serata`.
+- `../App.svelte`: macchina a stati `booting` → `offline` | `anonymous` (con la parola già
+  data, `''` per l'admin, o nessuna) | `playing` | `administering`. Crea gli stati di partita,
+  bacheca, profilo e la cache dei link foto, mostra la tab bar giusta per il ruolo e la
+  conferma di uscita. Una sessione scaduta riporta alle regole con un avviso.
 
 ## Relazioni
 - Dipende da: tutti gli altri moduli.

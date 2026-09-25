@@ -17,6 +17,17 @@ export function browserPhotoExporter(): PhotoExporter {
       }
     },
 
+    async shareText(text) {
+      if (typeof navigator.share !== 'function') return 'unsupported';
+      try {
+        await navigator.share({ text });
+        return 'shared';
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled';
+        return 'unsupported';
+      }
+    },
+
     download(file) {
       saveBlob(file.blob, file.name);
     },

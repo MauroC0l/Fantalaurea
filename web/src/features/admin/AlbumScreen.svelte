@@ -99,7 +99,7 @@
     </EmptyState>
   {:else if album.photos.length === 0}
     <EmptyState icon="image" title="Ancora nessuna foto">
-      <p>Le foto caricate con le azioni compariranno qui.</p>
+      <p>Le foto delle azioni e dei post compariranno qui.</p>
     </EmptyState>
   {:else}
     <Surface>
@@ -134,7 +134,7 @@
     <ul class="grid">
       {#each album.photos as photo, index (photo.id)}
         <li in:fly={{ y: 16, duration: duration('base'), delay: stagger(index, 25), easing }}>
-          <Thumbnail src={photo.thumbnailUrl} alt="{photo.actionTitle}, di {photo.nickname}" onclick={() => open(photo)} />
+          <Thumbnail src={photo.thumbnailUrl} alt="{photo.title}, di {photo.nickname}" onclick={() => open(photo)} />
           <p class="caption">{photo.nickname}</p>
         </li>
       {/each}
@@ -144,12 +144,12 @@
 
 <Lightbox
   src={viewing?.photo.fullUrl ?? null}
-  alt={viewing ? `${viewing.photo.actionTitle}, di ${viewing.photo.nickname}` : ''}
+  alt={viewing ? `${viewing.photo.title}, di ${viewing.photo.nickname}` : ''}
   onclose={() => (viewing = null)}
 >
   {#snippet caption()}
     {#if viewing}
-      <p class="lightbox-title">{viewing.photo.actionTitle}</p>
+      <p class="lightbox-title">{viewing.photo.source === 'post' ? 'Post: ' : ''}{viewing.photo.title}</p>
       <p>{viewing.photo.nickname} ({viewing.photo.realName}) · {formatTime(viewing.photo.takenAt)}</p>
     {/if}
   {/snippet}
@@ -177,7 +177,7 @@
 {/snippet}
 
 <Dialog open={confirmingDelete} title="Eliminare la foto?" onclose={() => (confirmingDelete = false)} actions={deleteActions}>
-  <p>Se per quell'azione la foto era obbligatoria, l'azione verrà annullata per chi l'ha scattata.</p>
+  <p>Se è il post di qualcuno, il post sparisce dalla bacheca. Se era la foto obbligatoria di un'azione, l'azione viene annullata per chi l'ha scattata.</p>
 </Dialog>
 
 <style>

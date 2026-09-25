@@ -9,7 +9,6 @@
   import Dialog from '../../ui/components/Dialog.svelte';
   import EmptyState from '../../ui/components/EmptyState.svelte';
   import Icon from '../../ui/components/Icon.svelte';
-  import IconButton from '../../ui/components/IconButton.svelte';
   import Lightbox from '../../ui/components/Lightbox.svelte';
   import Loader from '../../ui/components/Loader.svelte';
   import ProgressBar from '../../ui/components/ProgressBar.svelte';
@@ -21,17 +20,18 @@
   import { duration, easing, stagger } from '../../ui/theme/motion';
   import { DIFFICULTY_LABELS } from '../labels';
   import type { GameState } from '../game/game-state.svelte';
+  import type { PhotoLinksCache } from '../photos/photo-links.svelte';
   import ActionItem from './ActionItem.svelte';
   import CompletedItem from './CompletedItem.svelte';
   import PhotoConfirmDialog from './PhotoConfirmDialog.svelte';
 
   interface Props {
     game: GameState;
+    links: PhotoLinksCache;
     haptics: Haptics;
-    onlogout: () => void;
   }
 
-  let { game, haptics, onlogout }: Props = $props();
+  let { game, links, haptics }: Props = $props();
 
   type Filter = 'all' | 'bonus' | 'malus' | 'done';
 
@@ -50,7 +50,6 @@
 
   type OpenDialog =
     | { kind: 'none' }
-    | { kind: 'logout' }
     | { kind: 'confirm-photo'; action: Action; file: File }
     | { kind: 'undo'; action: Action }
     | { kind: 'delete-photo'; action: Action }
@@ -119,9 +118,6 @@
       <p><strong>{game.done.length}</strong> su {game.catalog.length} completate</p>
       <ProgressBar value={game.done.length} max={game.catalog.length} label="Azioni completate" />
     </div>
-    {#snippet trailing()}
-      <IconButton icon="logout" label="Esci" onclick={() => (dialog = { kind: 'logout' })} />
-    {/snippet}
   </ScreenHeader>
 
   {#if game.status === 'loading'}
@@ -140,7 +136,7 @@
     {/if}
 
     {#if filter === 'done'}
-      <p class="privacy"><Icon name="shield" size={16} /> Le tue foto le vedete solo tu e l'admin.</p>
+      <p class="privacy"><Icon name="image" size={16} /> Le foto delle azioni compaiono in bacheca: le vedono tutti i partecipanti.</p>
       <ul class="list">
         {#each game.done as action (action.id)}
           {@const completion = game.completionOf(action)!}
@@ -148,7 +144,7 @@
             <CompletedItem
               {action}
               {completion}
-              photo={game.photoOf(action)}
+              photo={links.get(completion.photoId)}
               mine={game.canChange(action)}
               busy={game.isBusy(action)}
               onundo={() => (dialog = { kind: 'undo', action })}
@@ -213,7 +209,7 @@
   {#if dialog.kind === 'undo'}
     <p>
       <strong>{dialog.action.title}</strong> tornerà tra quelle da fare.
-      {#if game.photoOf(dialog.action)}Anche la foto verrà eliminata.{/if}
+      {#if game.completionOf(dialog.action)?.photoId}Anche la foto verrà eliminata.{/if}
     </p>
   {/if}
 </Dialog>
@@ -239,22 +235,11 @@
 </Dialog>
 
 <Lightbox
-  src={dialog.kind === 'view-photo' ? (game.photoOf(dialog.action)?.fullUrl ?? null) : null}
-  alt={dialog.kind === 'view-photo' ? `La tua foto per ${dialog.action.title}` : ''}
+  src={dialog.kind === 'view-photo' ? (links.get(game.completionOf(dialog.action)?.photoId)?.fullUrl ?? null) : null}
+  alt={dialog.kind === 'view-photo' ? `Foto per ${dialog.action.title}` : ''}
   onclose={close}
 />
 
-{#snippet logoutActions()}
-  <Button variant="danger" block onclick={onlogout}>Esci</Button>
-  <Button variant="ghost" block onclick={close}>Resta</Button>
-{/snippet}
-
-<Dialog open={dialog.kind === 'logout'} title="Vuoi uscire?" onclose={close} actions={logoutActions}>
-  <p>
-    Le tue azioni restano salvate. Per rientrare usa lo stesso nickname
-    (<strong>{game.session.player.nickname}</strong>) e lo stesso nome vero.
-  </p>
-</Dialog>
 
 <style>
   .progress {

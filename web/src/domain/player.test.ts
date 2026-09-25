@@ -29,6 +29,7 @@ describe('sameName', () => {
 describe('rankParticipants', () => {
   const participant = (nickname: string, points: number, actionsDone: number): Participant => ({
     player: { id: nickname, nickname, realName: nickname },
+    avatarId: null,
     points,
     actionsDone,
   });

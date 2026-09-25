@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { OwnPhoto } from '../../application/ports';
+  import type { PhotoLinks } from '../../application/ports';
   import type { Action } from '../../domain/action';
   import type { Completion } from '../../domain/completion';
   import Button from '../../ui/components/Button.svelte';
@@ -13,7 +13,7 @@
   interface Props {
     action: Action;
     completion: Completion;
-    photo: OwnPhoto | undefined;
+    photo: PhotoLinks | undefined;
     mine: boolean;
     busy: boolean;
     onundo: () => void;
@@ -25,7 +25,8 @@
   let { action, completion, photo, mine, busy, onundo, ondeletephoto, onpickphoto, onviewphoto }: Props = $props();
 
   const when = $derived(formatTime(completion.completedAt));
-  const canAddPhoto = $derived(mine && !photo && action.photoPolicy === 'optional');
+  const hasPhoto = $derived(completion.photoId !== null);
+  const canAddPhoto = $derived(mine && !hasPhoto && action.photoPolicy === 'optional');
 </script>
 
 <Surface tone={action.kind} highlighted>
@@ -39,9 +40,9 @@
         </p>
       </div>
       <PointsPill points={action.points} />
-      {#if photo}
+      {#if hasPhoto}
         <span class="thumb">
-          <Thumbnail src={photo.thumbnailUrl} alt="La tua foto per {action.title}" onclick={onviewphoto} />
+          <Thumbnail src={photo?.thumbnailUrl ?? ''} alt="Foto per {action.title}" onclick={onviewphoto} />
         </span>
       {/if}
     </div>
@@ -51,7 +52,7 @@
         <Button size="small" variant="ghost" disabled={busy} onclick={onundo}>
           <Icon name="undo" size={16} /> Annulla
         </Button>
-        {#if photo}
+        {#if hasPhoto}
           <Button size="small" variant="ghost" disabled={busy} onclick={ondeletephoto}>
             <Icon name="trash" size={16} /> Elimina foto
           </Button>

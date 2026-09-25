@@ -27,17 +27,14 @@
     admin: AdminState;
     onlogout: () => void;
     onunauthorized: () => void;
-    onopenalbum: () => void;
   }
 
-  let { admin, onlogout, onunauthorized, onopenalbum }: Props = $props();
+  let { admin, onlogout, onunauthorized }: Props = $props();
 
   type OpenDialog =
     | { kind: 'none' }
     | { kind: 'edit'; action: Action | 'new' }
-    | { kind: 'remove'; action: Action }
-    | { kind: 'photos-reminder'; photoCount: number }
-    | { kind: 'reset' };
+    | { kind: 'remove'; action: Action };
 
   let dialog = $state<OpenDialog>({ kind: 'none' });
   let busy = $state(false);
@@ -61,14 +58,6 @@
     else reportFailure(result.error);
   }
 
-  /** Photos are deleted with the evening: remind to save them first (only if there are any). */
-  async function askToReset() {
-    busy = true;
-    const count = await admin.photoCount();
-    busy = false;
-    if (!count.ok) return reportFailure(count.error);
-    dialog = count.value > 0 ? { kind: 'photos-reminder', photoCount: count.value } : { kind: 'reset' };
-  }
 </script>
 
 <Screen withTabBar>
@@ -129,18 +118,6 @@
       </section>
     {/each}
 
-    <section class="section">
-      <h2>Serata</h2>
-      <Surface tone="malus" highlighted>
-        <div class="danger-zone">
-          <p>
-            Finita la festa? Cancella partecipanti, azioni segnate e foto per ripartire da zero. La lista delle azioni
-            resta.
-          </p>
-          <Button variant="danger" block loading={busy} onclick={askToReset}>Termina e ricomincia</Button>
-        </div>
-      </Surface>
-    </section>
   {/if}
 </Screen>
 
@@ -174,42 +151,7 @@
   <p>Chi l'ha già completata la perde, insieme alle eventuali foto.</p>
 </Dialog>
 
-{#snippet reminderActions()}
-  <Button
-    block
-    onclick={() => {
-      close();
-      onopenalbum();
-    }}
-  >
-    <Icon name="image" size={20} /> Vai all'album
-  </Button>
-  <Button variant="danger" block onclick={() => (dialog = { kind: 'reset' })}>Le ho salvate, continua</Button>
-  <Button variant="ghost" block onclick={close}>Annulla</Button>
-{/snippet}
 
-<Dialog open={dialog.kind === 'photos-reminder'} title="Hai salvato le foto?" onclose={close} actions={reminderActions}>
-  {#if dialog.kind === 'photos-reminder'}
-    <p>
-      Nell'album ci sono <strong>{dialog.photoCount} foto</strong>. Terminando la
-      serata verranno cancellate per sempre: prima scaricale o condividile dall'album.
-    </p>
-  {/if}
-</Dialog>
-
-{#snippet confirmReset()}
-  <Button variant="danger" block loading={busy} onclick={() => run(() => admin.resetEvening(), 'Serata azzerata: si riparte!')}>
-    Sì, ricomincia da zero
-  </Button>
-  <Button variant="ghost" block onclick={close}>Annulla</Button>
-{/snippet}
-
-<Dialog open={dialog.kind === 'reset'} title="Terminare la serata?" onclose={close} actions={confirmReset}>
-  <p>
-    Partecipanti, azioni segnate e foto verranno cancellati. Chi è dentro dovrà iscriversi di nuovo. Non si può
-    annullare.
-  </p>
-</Dialog>
 
 <style>
   .section {
@@ -281,9 +223,4 @@
     color: var(--color-text-subtle);
   }
 
-  .danger-zone {
-    display: grid;
-    gap: var(--space-4);
-    color: var(--color-text-muted);
-  }
 </style>

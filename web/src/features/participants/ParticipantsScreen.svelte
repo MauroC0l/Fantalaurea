@@ -11,8 +11,10 @@
   import Surface from '../../ui/components/Surface.svelte';
   import { duration, easing, stagger } from '../../ui/theme/motion';
   import type { GameState } from '../game/game-state.svelte';
+  import type { PhotoLinksCache } from '../photos/photo-links.svelte';
+  import { hrefTo } from '../routes';
 
-  let { game }: { game: GameState } = $props();
+  let { game, links }: { game: GameState; links: PhotoLinksCache } = $props();
 
   const count = $derived(game.participants.length);
   const others = $derived(game.participants.filter((p) => p.player.id !== game.session.player.id));
@@ -33,10 +35,11 @@
           animate:flip={{ duration: duration('slow'), easing }}
           in:fly={{ y: 20, duration: duration('base'), delay: stagger(index), easing }}
         >
+          <a class="link" href={hrefTo({ name: 'giocatore', id: participant.player.id })}>
           <Surface highlighted={isMe}>
             <div class="row">
               <span class="rank">{index + 1}</span>
-              <Avatar name={participant.player.nickname} />
+              <Avatar name={participant.player.nickname} src={links.get(participant.avatarId)?.thumbnailUrl} />
               <div class="names">
                 <p class="nickname">
                   {participant.player.nickname}
@@ -50,12 +53,13 @@
               </p>
             </div>
           </Surface>
+          </a>
         </li>
       {/each}
     </ul>
     {#if others.length === 0}
       <EmptyState icon="party" title="Sei il primo!">
-        <p>Condividi il link: appena qualcuno si iscrive, compare qui.</p>
+        <p>Condividi il link e la parola della serata: appena qualcuno entra, compare qui.</p>
       </EmptyState>
     {/if}
   {/if}
@@ -66,6 +70,15 @@
     display: grid;
     gap: var(--space-3);
     list-style: none;
+  }
+
+  .link {
+    display: block;
+    transition: transform var(--duration-fast) var(--ease-out);
+  }
+
+  .link:active {
+    transform: scale(0.98);
   }
 
   .row {

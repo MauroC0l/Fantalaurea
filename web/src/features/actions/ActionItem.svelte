@@ -50,7 +50,7 @@
     <p class="note">Vale per tutti: quando la segni compare fatta per ogni giocatore.</p>
   {/if}
   {#if action.photoPolicy !== 'none'}
-    <p class="note"><Icon name="shield" size={14} /> La foto la vedete solo tu e l'admin.</p>
+    <p class="note"><Icon name="image" size={14} /> La foto finisce in bacheca: la vedono tutti i partecipanti.</p>
   {/if}
 
   <div class="buttons">

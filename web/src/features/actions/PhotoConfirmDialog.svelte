@@ -37,7 +37,7 @@
   {#if preview}
     <img class="preview" src={preview} alt="Anteprima della foto" />
   {/if}
-  <p>La vedrete solo tu e l'admin. Viene inviata in alta qualità.</p>
+  <p>Finisce in bacheca, visibile a tutti i partecipanti. Viene inviata in alta qualità.</p>
 </Dialog>
 
 <style>

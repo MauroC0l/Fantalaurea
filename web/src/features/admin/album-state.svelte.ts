@@ -76,7 +76,7 @@ export class AlbumState {
 
 function fileNameOf(photo: AlbumPhoto): string {
   const time = photo.takenAt.toTimeString().slice(0, 5).replace(':', '');
-  return `fantalaurea-${slug(photo.nickname)}-${slug(photo.actionTitle)}-${time}.jpg`;
+  return `fantalaurea-${slug(photo.nickname)}-${slug(photo.title)}-${time}.jpg`;
 }
 
 function uniqueFileNames(photos: readonly AlbumPhoto[]): string[] {

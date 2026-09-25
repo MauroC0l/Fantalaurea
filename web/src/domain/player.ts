@@ -9,6 +9,7 @@ export interface Player {
 
 export interface Participant {
   readonly player: Player;
+  readonly avatarId: string | null;
   readonly actionsDone: number;
   readonly points: number;
 }

@@ -1,9 +1,11 @@
-// The only code that touches photo files (ADR 0008). It checks the app's own tokens, runs the
-// service-only SQL functions and keeps the private bucket in sync with the database.
+// The only code that touches photo files (ADR 0008, 0012). It checks the app's own tokens, runs
+// the service-only SQL functions and keeps the private bucket in sync with the database.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
 const BUCKET = 'photos';
-const LINK_TTL_SECONDS = 60 * 60;
+// Long enough for a whole evening: phones cache links instead of asking again.
+const LINK_TTL_SECONDS = 12 * 60 * 60;
+const MAX_LINKS_PER_REQUEST = 100;
 const MAX_FULL_BYTES = 15 * 1024 * 1024;
 const MAX_THUMBNAIL_BYTES = 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -40,16 +42,28 @@ function respond(reply: Reply, status = 200): Response {
 
 async function route(request: Request): Promise<Reply> {
   if (request.headers.get('content-type')?.startsWith('multipart/form-data')) {
-    return completeWithPhoto(await request.formData());
+    const form = await request.formData();
+    switch (form.get('op')) {
+      case 'complete':
+        return completeWithPhoto(form);
+      case 'post':
+        return createPost(form);
+      case 'avatar':
+        return setAvatar(form);
+      default:
+        return REJECTED;
+    }
   }
   const body = await request.json();
   switch (body.op) {
+    case 'links':
+      return links(body.token, body.photoIds);
     case 'undo':
       return undo(body.token, body.actionId);
     case 'delete-photo':
       return deletePhoto(body.token, body.photoId);
-    case 'own-photos':
-      return ownPhotos(body.token);
+    case 'delete-post':
+      return deletePost(body.token, body.postId);
     case 'album':
       return album(body.token);
     case 'remove-action':
@@ -65,15 +79,9 @@ async function completeWithPhoto(form: FormData): Promise<Reply> {
   const playerId = await playerOf(form.get('token'));
   if (!playerId) return UNAUTHORIZED;
   const actionId = form.get('actionId');
-  const full = form.get('full');
-  const thumbnail = form.get('thumbnail');
-  if (typeof actionId !== 'string' || !isJpeg(full, MAX_FULL_BYTES) || !isJpeg(thumbnail, MAX_THUMBNAIL_BYTES)) {
-    return REJECTED;
-  }
-
-  const photoId = crypto.randomUUID();
-  await upload(fullPath(photoId), full);
-  await upload(thumbnailPath(photoId), thumbnail);
+  if (typeof actionId !== 'string') return REJECTED;
+  const photoId = await uploadPair(form);
+  if (!photoId) return REJECTED;
 
   const result = await call<{ status: string; replaced_photo_id: string | null }>('svc_complete_with_photo', {
     p_player_id: playerId,
@@ -88,6 +96,41 @@ async function completeWithPhoto(form: FormData): Promise<Reply> {
   return OK;
 }
 
+async function createPost(form: FormData): Promise<Reply> {
+  const playerId = await playerOf(form.get('token'));
+  if (!playerId) return UNAUTHORIZED;
+  const caption = form.get('caption');
+  const photoId = await uploadPair(form);
+  if (!photoId) return REJECTED;
+
+  const status = await call<string>('svc_create_post', {
+    p_player_id: playerId,
+    p_photo_id: photoId,
+    p_caption: typeof caption === 'string' ? caption : '',
+  });
+  if (status !== 'ok') await removeFiles([photoId]);
+  return { status };
+}
+
+async function setAvatar(form: FormData): Promise<Reply> {
+  const playerId = await playerOf(form.get('token'));
+  if (!playerId) return UNAUTHORIZED;
+  const photoId = await uploadPair(form);
+  if (!photoId) return REJECTED;
+  const previous = await call<string | null>('svc_set_avatar', { p_player_id: playerId, p_photo_id: photoId });
+  await removeFiles([previous]);
+  return OK;
+}
+
+/** Any participant may see any photo of the evening (ADR 0012). */
+async function links(token: unknown, photoIds: unknown): Promise<Reply> {
+  if (!(await hasSession(token))) return UNAUTHORIZED;
+  if (!Array.isArray(photoIds) || photoIds.length > MAX_LINKS_PER_REQUEST || !photoIds.every(isUuid)) return REJECTED;
+  const known = await call<string[]>('svc_known_photos', { p_ids: photoIds });
+  const signed = await signedLinks(known);
+  return { status: 'ok', links: Object.fromEntries(signed) };
+}
+
 async function undo(token: unknown, actionId: unknown): Promise<Reply> {
   const playerId = await playerOf(token);
   if (!playerId) return UNAUTHORIZED;
@@ -100,45 +143,43 @@ async function undo(token: unknown, actionId: unknown): Promise<Reply> {
   return { status: result.status };
 }
 
-/** Players delete their own photos; the admin can delete any. */
+/** Players delete their own photos; the admin can delete any (moderation). */
 async function deletePhoto(token: unknown, photoId: unknown): Promise<Reply> {
   if (!isUuid(photoId)) return REJECTED;
-  const admin = await isAdmin(token);
-  const playerId = admin ? null : await playerOf(token);
-  if (!admin && !playerId) return UNAUTHORIZED;
-
+  const actor = await actorOf(token);
+  if (!actor) return UNAUTHORIZED;
   const result = await call<{ status: string; undone: boolean }>('svc_delete_photo', {
     p_photo_id: photoId,
-    p_player_id: playerId,
+    p_player_id: actor.playerId,
   });
   if (result.status === 'ok') await removeFiles([photoId]);
   return result;
 }
 
-async function ownPhotos(token: unknown): Promise<Reply> {
-  const playerId = await playerOf(token);
-  if (!playerId) return UNAUTHORIZED;
-  const rows = await photoRows(playerId);
-  const links = await signedLinks(rows.map((row) => row.photo_id));
-  return {
-    status: 'ok',
-    photos: rows.map((row) => ({ id: row.photo_id, actionId: row.action_id, ...links.get(row.photo_id) })),
-  };
+async function deletePost(token: unknown, postId: unknown): Promise<Reply> {
+  if (!isUuid(postId)) return REJECTED;
+  const actor = await actorOf(token);
+  if (!actor) return UNAUTHORIZED;
+  const photoId = await call<string | null>('svc_delete_post', { p_post_id: postId, p_player_id: actor.playerId });
+  if (!photoId) return REJECTED;
+  await removeFiles([photoId]);
+  return OK;
 }
 
 async function album(token: unknown): Promise<Reply> {
   if (!(await isAdmin(token))) return UNAUTHORIZED;
-  const rows = await photoRows(null);
-  const links = await signedLinks(rows.map((row) => row.photo_id));
+  const rows = await call<AlbumRow[]>('svc_photos', {});
+  const signed = await signedLinks(rows.map((row) => row.photo_id));
   return {
     status: 'ok',
     photos: rows.map((row) => ({
       id: row.photo_id,
-      actionTitle: row.action_title,
+      source: row.source,
+      title: row.title,
       nickname: row.player_nickname,
       realName: row.player_real_name,
-      takenAt: row.completed_at,
-      ...links.get(row.photo_id),
+      takenAt: row.taken_at,
+      ...signed.get(row.photo_id),
     })),
   };
 }
@@ -158,17 +199,24 @@ async function resetEvening(token: unknown): Promise<Reply> {
   return OK;
 }
 
-interface PhotoRow {
+interface AlbumRow {
   photo_id: string;
-  action_id: string;
-  action_title: string;
+  source: 'action' | 'post';
+  title: string;
   player_nickname: string;
   player_real_name: string;
-  completed_at: string;
+  taken_at: string;
 }
 
-function photoRows(playerId: string | null): Promise<PhotoRow[]> {
-  return call<PhotoRow[]>('svc_photos', { p_player_id: playerId });
+/** Stores the full photo and its thumbnail; returns the new photo id, or null if invalid. */
+async function uploadPair(form: FormData): Promise<string | null> {
+  const full = form.get('full');
+  const thumbnail = form.get('thumbnail');
+  if (!isJpeg(full, MAX_FULL_BYTES) || !isJpeg(thumbnail, MAX_THUMBNAIL_BYTES)) return null;
+  const photoId = crypto.randomUUID();
+  await upload(fullPath(photoId), full);
+  await upload(thumbnailPath(photoId), thumbnail);
+  return photoId;
 }
 
 /**
@@ -189,6 +237,18 @@ async function signedLinks(photoIds: string[]): Promise<Map<string, { thumbnailU
 function withoutHost(url: string): string {
   const parsed = new URL(url);
   return parsed.pathname + parsed.search;
+}
+
+/** playerId null = the admin. */
+async function actorOf(token: unknown): Promise<{ playerId: string | null } | null> {
+  if (await isAdmin(token)) return { playerId: null };
+  const playerId = await playerOf(token);
+  return playerId ? { playerId } : null;
+}
+
+async function hasSession(token: unknown): Promise<boolean> {
+  if (!isUuid(token)) return false;
+  return call<boolean>('has_session', { p_token: token });
 }
 
 async function playerOf(token: unknown): Promise<string | null> {

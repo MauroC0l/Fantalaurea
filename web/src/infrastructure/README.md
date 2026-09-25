@@ -4,27 +4,29 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
 
 ## Contenuto
 - `supabase/supabase-backend.ts`: `SupabaseBackend` implementa `PlayerAccounts`,
-  `GameBoard`, `PlayerMoves` ed `EveningAdmin`.
-  - Operazioni senza file: funzioni RPC del database.
-  - Tutto ciò che tocca le foto: Edge Function `photos` (ADR 0008). I link alle foto
-    arrivano senza host e l'adapter li completa con l'URL di Supabase.
-  - `onChange` ascolta Realtime su `actions`, `players`, `player_completions`,
-    `shared_completions` e il ritorno in primo piano del telefono; raggruppa gli avvisi
-    vicini (300 ms).
+  `GameBoard`, `PlayerMoves`, `EveningAdmin` e `PhotoLinkProvider`.
+  - Tutte le letture sono funzioni RPC con il token; il codice `28000` diventa
+    `SessionExpiredError`.
+  - Ciò che tocca i file passa dalla Edge Function `photos` (ADR 0008).
+  - I link firmati (12 ore) sono tenuti in una cache: ogni foto si chiede una volta sola.
+  - `onChange` ascolta il canale broadcast `fantalaurea`, dove il database manda solo il nome
+    della tabella cambiata (ADR 0011). Raggruppa i segnali (300 ms) e al ritorno in primo
+    piano del telefono segnala tutte le tabelle.
+  - Nel log admin invia lo user agent del telefono.
 - `supabase/supabase-backend.db-test.ts`: test d'integrazione contro lo stack locale
-  (`npm run test:db`, AZZERA la serata locale).
-- `browser/canvas-photo-processor.ts`: decodifica la foto (anche HEIC su Safari), corregge
-  l'orientamento e la ricodifica in JPEG: 2560 px / qualità 0,9 e miniatura 480 px (i valori
-  sono in `app/compose.ts`).
-- `browser/browser-photo-exporter.ts`: condivisione (Web Share API), download singolo e ZIP
-  (libreria `fflate`, senza ricompressione).
-- `browser/safe-storage.ts`, `browser/storage-session-store.ts`: token in `localStorage`,
-  senza errori in navigazione privata.
+  (`npm run test:db`, ricrea il database locale).
+- `browser/canvas-photo-processor.ts`: decodifica (anche HEIC su Safari), orientamento,
+  JPEG. `original`: 2560 px + miniatura 720 px; `square`: ritaglio centrale 512 px +
+  miniatura 160 px (valori in `app/compose.ts`).
+- `browser/browser-photo-exporter.ts`: condivisione di file e di testo (Web Share API),
+  download singolo e ZIP (`fflate`).
+- `browser/browser-clipboard.ts`: copia negli appunti.
+- `browser/safe-storage.ts`, `browser/storage-session-store.ts`: token in `localStorage`.
 - `browser/vibration-haptics.ts`: Vibration API (su iOS non fa nulla).
 
 ## Relazioni
-- Dipende da: `application/` (porte), `domain/`, `@supabase/supabase-js`, `fflate`, lo schema
-  in `supabase/`.
+- Dipende da: `application/`, `domain/`, `@supabase/supabase-js`, `fflate`, lo schema e la
+  funzione in `supabase/`.
 - Usato da: `app/compose.ts` soltanto.
-- Dati posseduti: la chiave `fantalaurea:session-token` in `localStorage`.
-- Pubblica: le notifiche di `GameBoard.onChange`.
+- Dati posseduti: la chiave `fantalaurea:session-token` in `localStorage`, la cache dei link.
+- Ascolta: il canale broadcast `fantalaurea`. Pubblica: le notifiche di `GameBoard.onChange`.

@@ -1,42 +1,52 @@
 # supabase — il database
 
-Schema, regole di accesso e funzioni del backend reale (Postgres su Supabase). Motivazioni
-in [ADR 0002](../docs/adr/0002-backend-supabase.md) e [ADR 0005](../docs/adr/0005-admin-e-serata-unica.md).
+Schema, regole di accesso e funzioni del backend (Postgres su Supabase). Motivazioni negli
+ADR 0002, 0005, 0007, 0008, 0010, 0011 e 0012.
 
 ## Contenuto
 - `migrations/`: lo schema, versionato. Ogni modifica è un file nuovo, mai la modifica di
-  uno vecchio.
+  uno già applicato in produzione.
 - `migrations/20260924130000_default_catalog.sql`: la lista predefinita delle azioni. È una
-  migrazione e non un seed perché deve arrivare anche in produzione: la CLI non riesegue un
-  seed già applicato. Dopo il primo avvio le azioni si cambiano dal pannello admin.
+  migrazione e non un seed perché deve arrivare anche in produzione (la CLI non riesegue un
+  seed già applicato).
+- `functions/photos/`: la Edge Function, unico punto che tocca i file delle foto.
 - `config.toml`: configurazione dello stack locale.
 
 ## Tabelle
-| Tabella | Leggibile dai client | Contenuto |
-|---|---|---|
-| `actions` | sì | le azioni della serata: titolo, descrizione, tipo, punti (negativi per i malus), difficoltà, politica foto |
-| `players` | sì | i giocatori; nickname unico senza distinguere maiuscole |
-| `player_completions` | sì | azioni fatte da ogni giocatore, con l'id dell'eventuale foto |
-| `shared_completions` | sì | azioni "per tutti" fatte (una riga per azione, con chi l'ha segnata) |
-| `sessions` | **no** | i token di accesso, di giocatori e admin |
-| `admin_credentials` | **no** | nickname e nome reale dell'admin (modificabili dalla dashboard) |
+**Nessuna è leggibile dai client** (ADR 0011): si passa solo dalle funzioni.
 
-Nessun client può scrivere direttamente nelle tabelle. Le foto stanno nel bucket PRIVATO
-`photos` (`full/<id>.jpg` e `thumb/<id>.jpg`), accessibile solo alla funzione `photos`.
+| Tabella | Contenuto |
+|---|---|
+| `actions` | azioni: titolo, descrizione, tipo, punti (negativi per i malus), difficoltà, politica foto |
+| `players` | giocatori: nickname unico, nome vero, bio, foto profilo |
+| `player_completions` / `shared_completions` | azioni fatte (quelle "per tutti" una volta sola), con foto |
+| `posts` | post della bacheca: foto + didascalia |
+| `likes` | like su post e completamenti (`target_id`) |
+| `sessions` | token di giocatori e admin |
+| `admin_credentials` | nickname e nome vero dell'admin |
+| `evening_settings` | la parola segreta della serata |
+| `admin_access_log` | ogni accesso admin, con il dispositivo |
+
+Le foto stanno nel bucket PRIVATO `photos` (`full/<id>.jpg`, `thumb/<id>.jpg`).
 
 ## API
-- RPC per i client: `join_game`, `resume_session`, `participants`, `completions_for`,
-  `complete_action`, `admin_add_action`, `admin_update_action`.
-- Edge Function `functions/photos` (unico punto che tocca i file, ADR 0008): completamento
-  con foto, annulla, elimina foto, foto proprie, album, elimina azione, azzera serata. Usa le
-  funzioni SQL `svc_*`, eseguibili solo dal `service_role`.
-- Le altre funzioni sono interne e non eseguibili dai client.
+- RPC senza token: `check_secret_word`, `join_game`, `resume_session`.
+- RPC con token (ogni sessione): `catalog`, `participants`, `feed`, `profile`, `likers`.
+  Giocatore: `completions_for`, `complete_action`, `toggle_like`, `update_bio`. Admin:
+  `admin_add_action`, `admin_update_action`, `admin_secret_word`, `admin_set_secret_word`,
+  `admin_access_log`. Un token sconosciuto dà l'errore `28000` (HTTP 403).
+- Edge Function `photos`: completamento con foto, post, foto profilo, link firmati, annulla,
+  elimina foto / post, album, elimina azione, azzera serata. Usa le funzioni `svc_*`,
+  eseguibili solo dal `service_role`.
+
+## Tempo reale
+Nessun dato viaggia: trigger su `actions`, `players`, completamenti, `posts`, `likes` e
+`sessions` mandano sul canale broadcast pubblico `fantalaurea` l'evento `changed` con il solo
+nome della tabella. I client rileggono con il loro token.
 
 ## Relazioni
 - Usato da: `web/src/infrastructure/supabase/supabase-backend.ts`, l'unico modulo che conosce
   queste tabelle e funzioni.
-- Pubblica: modifiche in tempo reale (Realtime) di `actions`, `players`,
-  `player_completions`, `shared_completions`.
 - Attenzione: cancellare righe dalla dashboard lascia file orfani nel bucket; usare l'app.
 
 ## Comandi (da `web/`, serve Docker)

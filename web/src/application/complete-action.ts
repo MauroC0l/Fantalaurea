@@ -17,7 +17,7 @@ export async function completeAction(
   if (action.photoPolicy === 'none') return err('rejected');
 
   try {
-    const prepared = await deps.photos.prepare(file);
+    const prepared = await deps.photos.prepare(file, 'original');
     return deps.moves.completeWithPhoto(session, action.id, prepared);
   } catch {
     return err('unreadable-photo');

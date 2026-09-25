@@ -1,14 +1,11 @@
-export const ROUTES = ['regole', 'iscrizione', 'azioni', 'partecipanti', 'admin', 'album'] as const;
+import { SIMPLE_ROUTES, hrefTo, type Route, type RouteName } from '../features/routes';
 
-export type Route = (typeof ROUTES)[number];
-
-export function hrefTo(route: Route): string {
-  return `#/${route}`;
-}
+export { hrefTo, type Route } from '../features/routes';
 
 function parse(hash: string): Route | null {
-  const candidate = hash.replace(/^#\/?/, '');
-  return (ROUTES as readonly string[]).includes(candidate) ? (candidate as Route) : null;
+  const [name, id] = hash.replace(/^#\/?/, '').split('/');
+  if (name === 'giocatore' && id) return { name, id };
+  return (SIMPLE_ROUTES as readonly string[]).includes(name) ? ({ name } as Route) : null;
 }
 
 /** Hash routing: static hosting serves index.html for every route without rewrites. */
@@ -19,7 +16,11 @@ export class HashRouter {
     addEventListener('hashchange', () => (this.current = parse(location.hash)));
   }
 
+  is(name: RouteName): boolean {
+    return this.current?.name === name;
+  }
+
   go(route: Route): void {
-    location.hash = `/${route}`;
+    location.hash = hrefTo(route).slice(1);
   }
 }

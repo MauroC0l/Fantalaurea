@@ -19,7 +19,13 @@ describe('completion rules', () => {
   });
 
   it('knows who owns a completion', () => {
-    const completion: Completion = { actionId: 'a', completedAt: new Date(), hasPhoto: false, by: { id: 'p1', nickname: 'N' } };
+    const completion: Completion = {
+      id: 'c1',
+      actionId: 'a',
+      completedAt: new Date(),
+      photoId: null,
+      by: { id: 'p1', nickname: 'N' },
+    };
     expect(isOwnedBy(completion, 'p1')).toBe(true);
     expect(isOwnedBy(completion, 'p2')).toBe(false);
   });

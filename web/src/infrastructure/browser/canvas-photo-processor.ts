@@ -1,8 +1,13 @@
-import type { PhotoProcessor, PreparedPhoto } from '../../application/ports';
+import type { PhotoProcessor, PhotoShape, PreparedPhoto } from '../../application/ports';
 
 export interface PhotoQuality {
   readonly maxEdge: number;
   readonly jpegQuality: number;
+}
+
+export interface ShapeQuality {
+  readonly full: PhotoQuality;
+  readonly thumbnail: PhotoQuality;
 }
 
 interface Decoded {
@@ -13,12 +18,14 @@ interface Decoded {
 }
 
 /** Decodes any image the browser understands (incl. iPhone HEIC in Safari) and re-encodes it as JPEG. */
-export function canvasPhotoProcessor(full: PhotoQuality, thumbnail: PhotoQuality): PhotoProcessor {
+export function canvasPhotoProcessor(qualities: Readonly<Record<PhotoShape, ShapeQuality>>): PhotoProcessor {
   return {
-    async prepare(file: File): Promise<PreparedPhoto> {
+    async prepare(file: File, shape: PhotoShape): Promise<PreparedPhoto> {
       const image = await decode(file);
+      const { full, thumbnail } = qualities[shape];
+      const square = shape === 'square';
       try {
-        return { full: await encode(image, full), thumbnail: await encode(image, thumbnail) };
+        return { full: await encode(image, full, square), thumbnail: await encode(image, thumbnail, square) };
       } finally {
         image.release();
       }
@@ -49,15 +56,20 @@ async function decodeWithImageElement(file: File): Promise<Decoded> {
   return { source: image, width: image.naturalWidth, height: image.naturalHeight, release: () => URL.revokeObjectURL(url) };
 }
 
-function encode(image: Decoded, quality: PhotoQuality): Promise<Blob> {
-  const scale = Math.min(1, quality.maxEdge / Math.max(image.width, image.height));
+/** A square crop keeps the centre of the photo, like a profile picture. */
+function encode(image: Decoded, quality: PhotoQuality, square: boolean): Promise<Blob> {
+  const side = Math.min(image.width, image.height);
+  const source = square
+    ? { x: (image.width - side) / 2, y: (image.height - side) / 2, width: side, height: side }
+    : { x: 0, y: 0, width: image.width, height: image.height };
+  const scale = Math.min(1, quality.maxEdge / Math.max(source.width, source.height));
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(image.width * scale);
-  canvas.height = Math.round(image.height * scale);
+  canvas.width = Math.round(source.width * scale);
+  canvas.height = Math.round(source.height * scale);
   const context = canvas.getContext('2d');
   if (!context) return Promise.reject(new Error('canvas unavailable'));
   context.imageSmoothingQuality = 'high';
-  context.drawImage(image.source, 0, 0, canvas.width, canvas.height);
+  context.drawImage(image.source, source.x, source.y, source.width, source.height, 0, 0, canvas.width, canvas.height);
   return new Promise((resolve, reject) =>
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('encoding failed'))), 'image/jpeg', quality.jpegQuality),
   );

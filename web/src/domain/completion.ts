@@ -2,9 +2,11 @@ import type { Action } from './action';
 
 /** An action done by the player, or a shared action done by anyone. */
 export interface Completion {
+  /** Likes point here. */
+  readonly id: string;
   readonly actionId: string;
   readonly completedAt: Date;
-  readonly hasPhoto: boolean;
+  readonly photoId: string | null;
   readonly by: { readonly id: string; readonly nickname: string };
 }
 
