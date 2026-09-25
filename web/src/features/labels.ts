@@ -24,6 +24,11 @@ export function formatTime(date: Date): string {
   return date.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
+/** "gio 2 ott, 22:14" */
+export function formatDateTime(date: Date): string {
+  return date.toLocaleString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+}
+
 /** "adesso", "5 min fa", "2 h fa", otherwise the time of day. */
 export function formatRelative(date: Date, now: Date = new Date()): string {
   const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000);

@@ -10,34 +10,75 @@
     onclose: () => void;
     caption?: Snippet;
     actions?: Snippet;
+    /** With these, arrows, swipes and arrow keys move between photos. */
+    onprevious?: () => void;
+    onnext?: () => void;
+    /** e.g. "3 di 12". */
+    position?: string;
   }
 
-  let { src, alt, onclose, caption, actions }: Props = $props();
+  let { src, alt, onclose, caption, actions, onprevious, onnext, position }: Props = $props();
+
+  const SWIPE_MIN_PX = 50;
 
   let loaded = $state(false);
+  let swipeStartX: number | null = null;
 
   $effect(() => {
     if (!src) return;
-    loaded = false;
-    const closeOnEscape = (event: KeyboardEvent) => event.key === 'Escape' && onclose();
-    addEventListener('keydown', closeOnEscape);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onclose();
+      if (event.key === 'ArrowLeft') onprevious?.();
+      if (event.key === 'ArrowRight') onnext?.();
+    };
+    addEventListener('keydown', onKey);
     document.body.classList.add('scroll-locked');
     return () => {
-      removeEventListener('keydown', closeOnEscape);
+      removeEventListener('keydown', onKey);
       document.body.classList.remove('scroll-locked');
     };
   });
+
+  $effect(() => {
+    void src;
+    loaded = false;
+  });
+
+  function endSwipe(event: PointerEvent) {
+    if (swipeStartX === null) return;
+    const distance = event.clientX - swipeStartX;
+    swipeStartX = null;
+    if (distance > SWIPE_MIN_PX) onprevious?.();
+    if (distance < -SWIPE_MIN_PX) onnext?.();
+  }
 </script>
 
 {#if src}
   <div class="lightbox" role="dialog" aria-modal="true" aria-label={alt} transition:fade={{ duration: duration('base') }}>
     <div class="top">
+      <span class="position">{position ?? ''}</span>
       <IconButton icon="close" label="Chiudi" onclick={onclose} />
     </div>
-    <button class="stage" onclick={onclose} aria-label="Chiudi">
+
+    <div
+      class="stage"
+      role="presentation"
+      onpointerdown={(event) => (swipeStartX = event.clientX)}
+      onpointerup={endSwipe}
+      onpointercancel={() => (swipeStartX = null)}
+    >
       {#if !loaded}<span class="spinner" aria-hidden="true"></span>{/if}
-      <img {src} {alt} onload={() => (loaded = true)} class:loaded in:scale={{ start: 0.92, duration: duration('slow'), easing }} />
-    </button>
+      {#key src}
+        <img {src} {alt} draggable="false" onload={() => (loaded = true)} class:loaded in:scale={{ start: 0.94, duration: duration('base'), easing }} />
+      {/key}
+      {#if onprevious}
+        <span class="nav previous"><IconButton icon="chevronLeft" label="Foto precedente" onclick={onprevious} /></span>
+      {/if}
+      {#if onnext}
+        <span class="nav next"><IconButton icon="chevronRight" label="Foto successiva" onclick={onnext} /></span>
+      {/if}
+    </div>
+
     {#if caption || actions}
       <div class="bottom">
         {#if caption}<div class="caption">{@render caption()}</div>{/if}
@@ -60,14 +101,23 @@
 
   .top {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
     padding: calc(var(--space-3) + var(--safe-top)) var(--space-4) var(--space-3);
+  }
+
+  .position {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-bold);
+    font-variant-numeric: tabular-nums;
   }
 
   .stage {
     position: relative;
     min-height: 0;
-    cursor: zoom-out;
+    touch-action: pan-y;
+    user-select: none;
   }
 
   img {
@@ -84,6 +134,21 @@
 
   img.loaded {
     opacity: 1;
+  }
+
+  .nav {
+    position: absolute;
+    top: 50%;
+    translate: 0 -50%;
+    opacity: 0.85;
+  }
+
+  .previous {
+    left: var(--space-2);
+  }
+
+  .next {
+    right: var(--space-2);
   }
 
   .spinner {

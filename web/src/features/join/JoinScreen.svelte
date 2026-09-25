@@ -21,9 +21,12 @@
     onjoined: (session: Session) => void;
     /** The word changed meanwhile: ask for it again. */
     onwrongword: () => void;
+    onback: () => void;
   }
 
-  let { accounts, sessions, secretWord, onjoined, onwrongword }: Props = $props();
+  let { accounts, sessions, secretWord, onjoined, onwrongword, onback }: Props = $props();
+
+  const asAdmin = $derived(secretWord === '');
 
   let nickname = $state('');
   let realName = $state('');
@@ -80,15 +83,23 @@
 </script>
 
 <Screen>
-  <ScreenHeader eyebrow="Iscrizione" title="Chi sei stasera?">
-    <p>Nickname per divertirsi, nome vero per farsi riconoscere.</p>
+  <ScreenHeader
+    eyebrow={asAdmin ? 'Accesso admin' : 'Iscrizione'}
+    title={asAdmin ? 'Entra come admin' : 'Chi sei stasera?'}
+    {onback}
+  >
+    <p>
+      {asAdmin
+        ? "Usa le credenziali dell'admin: nickname e nome vero."
+        : 'Nickname per divertirsi, nome vero per farsi riconoscere.'}
+    </p>
   </ScreenHeader>
 
   <form class="form" onsubmit={submit} novalidate in:fly={{ y: 24, duration: duration('slow'), delay: stagger(1, 120), easing }}>
     <TextField
       name="nickname"
       label="Nickname"
-      hint="Più è assurdo, meglio è"
+      hint={asAdmin ? undefined : 'Più è assurdo, meglio è'}
       maxlength={IDENTITY_LIMITS.nickname.max}
       error={errors.nickname}
       bind:value={nickname}
@@ -96,7 +107,7 @@
     <TextField
       name="realName"
       label="Nome vero"
-      hint="Nome e cognome, così ti riconoscono"
+      hint={asAdmin ? undefined : 'Nome e cognome, così ti riconoscono'}
       maxlength={IDENTITY_LIMITS.realName.max}
       autocomplete="name"
       autocapitalize="words"
@@ -104,11 +115,13 @@
       bind:value={realName}
     />
     <Button type="submit" block loading={submitting}>
-      Entra nella festa <Icon name="arrowRight" size={20} />
+      {asAdmin ? 'Apri il pannello' : 'Entra nella festa'} <Icon name="arrowRight" size={20} />
     </Button>
-    <p class="recover">
-      Già iscritto su un altro telefono? Inserisci lo stesso nickname e lo stesso nome: ritrovi le tue azioni.
-    </p>
+    {#if !asAdmin}
+      <p class="recover">
+        Già iscritto su un altro telefono? Inserisci lo stesso nickname e lo stesso nome: ritrovi le tue azioni.
+      </p>
+    {/if}
   </form>
 </Screen>
 

@@ -30,9 +30,11 @@
     links: PhotoLinksCache;
     /** Extra actions for your own profile (rules, logout). */
     footer?: Snippet;
+    /** Back arrow, for other players' profiles. */
+    onback?: () => void;
   }
 
-  let { profile, game, links, footer }: Props = $props();
+  let { profile, game, links, footer, onback }: Props = $props();
 
   let editingBio = $state<string | null>(null);
   let busy = $state(false);
@@ -84,6 +86,9 @@
 </script>
 
 <Screen withTabBar>
+  {#if onback}
+    <span class="back"><IconButton icon="arrowLeft" label="Indietro" onclick={onback} /></span>
+  {/if}
   {#if profile.status === 'loading'}
     <Loader label="Carico il profilo…" />
   {:else if profile.status === 'failed'}
@@ -188,6 +193,10 @@
 </Lightbox>
 
 <style>
+  .back {
+    justify-self: start;
+  }
+
   .hero {
     display: grid;
     justify-items: center;

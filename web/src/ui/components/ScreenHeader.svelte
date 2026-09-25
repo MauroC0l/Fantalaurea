@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { fly } from 'svelte/transition';
+  import IconButton from './IconButton.svelte';
   import { duration, easing } from '../theme/motion';
 
   interface Props {
@@ -9,13 +10,18 @@
     children?: Snippet;
     /** Shown top right, e.g. an IconButton. */
     trailing?: Snippet;
+    /** Shows a back arrow above the title. */
+    onback?: () => void;
   }
 
-  let { eyebrow, title, children, trailing }: Props = $props();
+  let { eyebrow, title, children, trailing, onback }: Props = $props();
 </script>
 
 <header in:fly={{ y: 16, duration: duration('slow'), easing }}>
   <div class="text">
+    {#if onback}
+      <span class="back"><IconButton icon="arrowLeft" label="Indietro" onclick={onback} /></span>
+    {/if}
     {#if eyebrow}
       <p class="eyebrow">{eyebrow}</p>
     {/if}
@@ -42,6 +48,10 @@
     display: grid;
     gap: var(--space-2);
     min-width: 0;
+  }
+
+  .back {
+    margin-bottom: var(--space-2);
   }
 
   .eyebrow {

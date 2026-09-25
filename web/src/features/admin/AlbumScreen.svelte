@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
   import type { AlbumPhoto, NamedFile } from '../../application/ports';
+  import Avatar from '../../ui/components/Avatar.svelte';
+  import Badge from '../../ui/components/Badge.svelte';
   import Button from '../../ui/components/Button.svelte';
   import Dialog from '../../ui/components/Dialog.svelte';
   import EmptyState from '../../ui/components/EmptyState.svelte';
@@ -16,7 +18,7 @@
   import Thumbnail from '../../ui/components/Thumbnail.svelte';
   import { toasts } from '../../ui/components/toasts.svelte';
   import { duration, easing, stagger } from '../../ui/theme/motion';
-  import { formatTime } from '../labels';
+  import { formatDateTime } from '../labels';
   import type { AlbumState } from './album-state.svelte';
 
   interface Props {
@@ -32,6 +34,14 @@
 
   const canShareAll = $derived(album.prepared !== null && album.exporter.canShare(album.prepared));
   const canShareOne = $derived(viewing?.file ? album.exporter.canShare([viewing.file]) : false);
+  const viewingIndex = $derived(viewing ? album.photos.findIndex((p) => p.id === viewing?.photo.id) : -1);
+  const hasPrevious = $derived(viewingIndex > 0);
+  const hasNext = $derived(viewingIndex >= 0 && viewingIndex < album.photos.length - 1);
+
+  function step(offset: 1 | -1) {
+    const target = album.photos[viewingIndex + offset];
+    if (target) void open(target);
+  }
 
   onMount(() => void load());
 
@@ -69,6 +79,7 @@
 
   async function deleteViewed() {
     if (!viewing) return;
+    const index = viewingIndex;
     deleting = true;
     const result = await album.delete(viewing.photo);
     deleting = false;
@@ -78,7 +89,10 @@
       else toasts.show('Eliminazione non riuscita: riprova', 'error');
       return;
     }
+    // Keep browsing: show the photo that took its place, if any.
+    const next = album.photos[Math.min(index, album.photos.length - 1)];
     viewing = null;
+    if (next) void open(next);
     toasts.show(result.value.undone ? 'Foto eliminata: l’azione è stata annullata' : 'Foto eliminata');
   }
 </script>
@@ -146,11 +160,26 @@
   src={viewing?.photo.fullUrl ?? null}
   alt={viewing ? `${viewing.photo.title}, di ${viewing.photo.nickname}` : ''}
   onclose={() => (viewing = null)}
+  onprevious={hasPrevious ? () => step(-1) : undefined}
+  onnext={hasNext ? () => step(1) : undefined}
+  position={viewingIndex >= 0 ? `${viewingIndex + 1} di ${album.photos.length}` : undefined}
 >
   {#snippet caption()}
     {#if viewing}
-      <p class="lightbox-title">{viewing.photo.source === 'post' ? 'Post: ' : ''}{viewing.photo.title}</p>
-      <p>{viewing.photo.nickname} ({viewing.photo.realName}) · {formatTime(viewing.photo.takenAt)}</p>
+      <div class="details">
+        <div class="details-head">
+          <Badge tone="neutral">{viewing.photo.source === 'post' ? 'Post in bacheca' : 'Azione'}</Badge>
+          <span class="when"><Icon name="clock" size={14} /> {formatDateTime(viewing.photo.takenAt)}</span>
+        </div>
+        <p class="lightbox-title">{viewing.photo.title}</p>
+        <div class="author">
+          <Avatar name={viewing.photo.nickname} size="sm" />
+          <span class="names">
+            <span class="nickname">{viewing.photo.nickname}</span>
+            <span class="real-name">{viewing.photo.realName}</span>
+          </span>
+        </div>
+      </div>
     {/if}
   {/snippet}
   {#snippet actions()}
@@ -218,9 +247,53 @@
     text-overflow: ellipsis;
   }
 
+  .details {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .details-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .when {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+  }
+
   .lightbox-title {
     color: var(--color-text);
     font-family: var(--font-display);
-    font-weight: var(--weight-bold);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-black);
+    line-height: var(--leading-tight);
+    overflow-wrap: anywhere;
+  }
+
+  .author {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .names {
+    display: grid;
+  }
+
+  .nickname {
+    color: var(--color-text);
+    font-weight: var(--weight-black);
+  }
+
+  .real-name {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
   }
 </style>

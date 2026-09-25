@@ -13,9 +13,10 @@
     accounts: PlayerAccounts;
     onaccepted: (word: string) => void;
     onadmin: () => void;
+    onback: () => void;
   }
 
-  let { accounts, onaccepted, onadmin }: Props = $props();
+  let { accounts, onaccepted, onadmin, onback }: Props = $props();
 
   let word = $state('');
   let error = $state<string>();
@@ -39,7 +40,7 @@
 </script>
 
 <Screen>
-  <ScreenHeader eyebrow="Accesso" title="Parola della serata">
+  <ScreenHeader eyebrow="Accesso" title="Parola della serata" {onback}>
     <p>La festa è a porte chiuse: serve la parola segreta che ti ha dato chi organizza.</p>
   </ScreenHeader>
 

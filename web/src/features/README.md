@@ -5,7 +5,8 @@ Le schermate e il loro stato.
 ## Ingresso
 - `rules/RulesScreen`: regole; con `onjoin` è il benvenuto del primo accesso.
 - `join/SecretWordScreen`: parola della serata (e link "Sei l'admin?").
-- `join/JoinScreen`: nickname + nome vero; se il nome vero esiste già chiede "Sei tu?"
+- `join/JoinScreen`: nickname + nome vero (in modalità admin: "Entra come admin", con
+  Indietro); se il nome vero esiste già chiede "Sei tu?"
   (prendi il vecchio profilo / sono un'altra persona / annulla).
 
 ## Giocatore (tab Bacheca · Azioni · Classifica · Profilo)
@@ -28,7 +29,8 @@ Le schermate e il loro stato.
 ## Admin (tab Azioni · Album · Serata)
 - `admin/AdminActionsScreen` + `ActionEditorDialog`: lista, crea, modifica, elimina azioni.
 - `admin/AlbumScreen` + `album-state.svelte.ts`: tutte le foto (azioni e post), condividi,
-  ZIP, elimina (moderazione).
+  ZIP, elimina (moderazione). Il visore mostra tipo, titolo, autore, data e ora e scorre tra le
+  foto; dopo un'eliminazione passa alla foto successiva.
 - `admin/EveningScreen`: parola della serata (condividi, copia, cambia: chi è dentro resta o
   esce), log accessi admin, "Termina e ricomincia" con promemoria delle foto.
 - `admin/admin-state.svelte.ts`: catalogo, partecipanti, parola e log in tempo reale.

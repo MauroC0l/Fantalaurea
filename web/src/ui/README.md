@@ -15,7 +15,7 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
 | Componente | Uso |
 |---|---|
 | `Screen` | contenitore di pagina, spazio per tab bar o footer fisso |
-| `ScreenHeader` | occhiello + titolo a gradiente + testo; `trailing` per un pulsante in alto a destra |
+| `ScreenHeader` | occhiello + titolo a gradiente + testo; `trailing` per un pulsante in alto a destra, `onback` per la freccia "Indietro" |
 | `Button` | `primary` / `ghost` / `danger`, taglia `regular` / `small`, stato `loading` |
 | `IconButton` | pulsante tondo con sola icona |
 | `PhotoPickerButton` | pulsante che apre fotocamera / galleria (input nativo nascosto) |
@@ -23,7 +23,7 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
 | `SegmentedControl` | scelta tra poche opzioni con indicatore che scorre |
 | `Disclosure` | tendina: riepilogo sempre visibile, contenuto che si apre animato |
 | `Dialog` | pannello dal basso con sfondo sfocato; Esc o tocco fuori per chiudere |
-| `Lightbox` | foto a schermo intero con didascalia e azioni |
+| `Lightbox` | foto a schermo intero con didascalia e azioni; con `onprevious` / `onnext` frecce, scorrimento col dito, tasti freccia e `position` ("3 di 12") |
 | `Thumbnail` | miniatura quadrata con caricamento animato |
 | `PhotoFrame` | foto della bacheca (4:5): un tocco apre, doppio tocco mette like con cuore animato |
 | `LikeButton` | cuore + "Piace a N persone" (apre l'elenco) |

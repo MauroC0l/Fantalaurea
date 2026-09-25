@@ -157,6 +157,11 @@
     router.go({ name: 'iscrizione' });
   }
 
+  function backToSecretWord() {
+    app = { kind: 'anonymous', secretWord: null };
+    router.go({ name: 'parola' });
+  }
+
   function adminWayIn() {
     app = { kind: 'anonymous', secretWord: '' };
     router.go({ name: 'iscrizione' });
@@ -189,13 +194,16 @@
           sessions={deps.sessions}
           secretWord={app.secretWord ?? ''}
           onjoined={enter}
-          onwrongword={() => {
-            app = { kind: 'anonymous', secretWord: null };
-            router.go({ name: 'parola' });
-          }}
+          onwrongword={backToSecretWord}
+          onback={backToSecretWord}
         />
       {:else if anonymousScreen === 'parola'}
-        <SecretWordScreen accounts={deps.accounts} onaccepted={acceptWord} onadmin={adminWayIn} />
+        <SecretWordScreen
+          accounts={deps.accounts}
+          onaccepted={acceptWord}
+          onadmin={adminWayIn}
+          onback={() => router.go({ name: 'regole' })}
+        />
       {:else}
         <RulesScreen onjoin={() => router.go({ name: 'parola' })} />
       {/if}
@@ -233,7 +241,12 @@
       {:else if playerScreen === 'classifica'}
         <ParticipantsScreen game={app.game} links={app.links} />
       {:else if (playerScreen === 'profilo' || playerScreen === 'giocatore') && profile}
-        <ProfileScreen {profile} game={app.game} links={app.links}>
+        <ProfileScreen
+          {profile}
+          game={app.game}
+          links={app.links}
+          onback={playerScreen === 'giocatore' ? () => history.back() : undefined}
+        >
           {#snippet footer()}
             {#if profile.isMine}
               <Button variant="ghost" block onclick={() => router.go({ name: 'regole' })}>
