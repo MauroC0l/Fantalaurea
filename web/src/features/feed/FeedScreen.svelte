@@ -48,6 +48,7 @@
     unavailable: 'Connessione assente: riprova',
     rejected: 'Post non valido',
     'caption-too-long': 'La didascalia è troppo lunga',
+    disabled: 'La bacheca è stata spenta dall’admin',
     'unreadable-photo': 'Non riesco a leggere questa foto: provane un’altra',
   };
 

@@ -4,7 +4,7 @@ import { ok } from '../domain/result';
 import type { PhotoProcessor, PhotoShape, PlayerMoves } from './ports';
 import { changeAvatar, publishPost, saveBio } from './social';
 
-const session: PlayerSession = { role: 'player', token: 't', player: { id: 'p', nickname: 'N', realName: 'R' } };
+const session: PlayerSession = { role: 'player', token: 't', inboxKey: 'k', player: { id: 'p', nickname: 'N', realName: 'R' } };
 const file = new File(['x'], 'x.jpg', { type: 'image/jpeg' });
 
 function fakes() {

@@ -4,7 +4,7 @@
   import type { Completion } from '../../domain/completion';
   import Button from '../../ui/components/Button.svelte';
   import Icon from '../../ui/components/Icon.svelte';
-  import PhotoPickerButton from '../../ui/components/PhotoPickerButton.svelte';
+  import PhotoSourceButtons from '../../ui/components/PhotoSourceButtons.svelte';
   import PointsPill from '../../ui/components/PointsPill.svelte';
   import Surface from '../../ui/components/Surface.svelte';
   import Thumbnail from '../../ui/components/Thumbnail.svelte';
@@ -57,9 +57,7 @@
             <Icon name="trash" size={16} /> Elimina foto
           </Button>
         {:else if canAddPhoto}
-          <PhotoPickerButton size="small" variant="ghost" loading={busy} onpick={onpickphoto}>
-            <Icon name="camera" size={16} /> Aggiungi foto
-          </PhotoPickerButton>
+          <PhotoSourceButtons size="small" variant="ghost" loading={busy} cameraLabel="Scatta" onpick={onpickphoto} />
         {/if}
       </div>
     {/if}

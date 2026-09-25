@@ -3,7 +3,7 @@
   import Button from '../../ui/components/Button.svelte';
   import Dialog from '../../ui/components/Dialog.svelte';
   import Icon from '../../ui/components/Icon.svelte';
-  import PhotoPickerButton from '../../ui/components/PhotoPickerButton.svelte';
+  import PhotoSourceButtons from '../../ui/components/PhotoSourceButtons.svelte';
 
   interface Props {
     action: Action | null;
@@ -28,9 +28,7 @@
 
 {#snippet actions()}
   <Button block loading={sending} onclick={onsend}><Icon name="check" size={20} /> Invia e completa</Button>
-  <PhotoPickerButton block variant="ghost" disabled={sending} onpick={onrepick}>
-    <Icon name="camera" size={20} /> Scegli un'altra foto
-  </PhotoPickerButton>
+  <PhotoSourceButtons variant="ghost" disabled={sending} cameraLabel="Riscatta" galleryLabel="Un'altra" onpick={onrepick} />
 {/snippet}
 
 <Dialog open={!!action && !!file} title={action?.title ?? ''} onclose={() => !sending && onclose()} {actions}>

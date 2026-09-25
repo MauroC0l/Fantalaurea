@@ -13,6 +13,11 @@
   import { AlbumState } from './features/admin/album-state.svelte';
   import FeedScreen from './features/feed/FeedScreen.svelte';
   import { FeedState } from './features/feed/feed-state.svelte';
+  import ChatListScreen from './features/chat/ChatListScreen.svelte';
+  import { ChatListState } from './features/chat/chat-list-state.svelte';
+  import ConversationScreen from './features/chat/ConversationScreen.svelte';
+  import { ConversationState } from './features/chat/conversation-state.svelte';
+  import { ALL_FEATURES_ON } from './domain/features';
   import { GameState } from './features/game/game-state.svelte';
   import JoinScreen from './features/join/JoinScreen.svelte';
   import SecretWordScreen from './features/join/SecretWordScreen.svelte';
@@ -39,7 +44,7 @@
     | { kind: 'offline' }
     /** secretWord: null = not given yet; '' = the admin's way in, without it. */
     | { kind: 'anonymous'; secretWord: string | null }
-    | { kind: 'playing'; game: GameState; feed: FeedState; links: PhotoLinksCache }
+    | { kind: 'playing'; game: GameState; feed: FeedState; chatList: ChatListState; links: PhotoLinksCache }
     | { kind: 'administering'; admin: AdminState; album: AlbumState };
 
   const deps = composeApp();
@@ -48,10 +53,11 @@
   let confirmingLogout = $state(false);
 
   const PLAYER_TABS = [
-    { id: 'bacheca', label: 'Bacheca', icon: 'home', href: hrefTo({ name: 'bacheca' }) },
-    { id: 'azioni', label: 'Azioni', icon: 'checklist', href: hrefTo({ name: 'azioni' }) },
-    { id: 'classifica', label: 'Classifica', icon: 'trophy', href: hrefTo({ name: 'classifica' }) },
-    { id: 'profilo', label: 'Profilo', icon: 'user', href: hrefTo({ name: 'profilo' }) },
+    { id: 'bacheca', label: 'Bacheca', icon: 'home', href: hrefTo({ name: 'bacheca' }), feature: 'feed' },
+    { id: 'azioni', label: 'Azioni', icon: 'checklist', href: hrefTo({ name: 'azioni' }), feature: null },
+    { id: 'classifica', label: 'Classifica', icon: 'trophy', href: hrefTo({ name: 'classifica' }), feature: 'leaderboard' },
+    { id: 'chat', label: 'Chat', icon: 'chat', href: hrefTo({ name: 'chat' }), feature: 'chat' },
+    { id: 'profilo', label: 'Profilo', icon: 'user', href: hrefTo({ name: 'profilo' }), feature: null },
   ] as const;
 
   const ADMIN_TABS = [
@@ -62,20 +68,42 @@
 
   type PlayerTab = (typeof PLAYER_TABS)[number]['id'];
   type AdminTab = (typeof ADMIN_TABS)[number]['id'];
-  type PlayerScreen = PlayerTab | 'giocatore' | 'regole';
+  type PlayerScreen = PlayerTab | 'giocatore' | 'regole' | 'conversazione';
 
+  const PLAYER_SCREENS: readonly string[] = ['bacheca', 'azioni', 'classifica', 'chat', 'profilo', 'giocatore', 'regole', 'conversazione'];
+
+  const features = $derived(app.kind === 'playing' ? app.game.features : ALL_FEATURES_ON);
+
+  /** Screens behind a switched-off feature fall back to the actions (ADR 0014). */
   const playerScreen = $derived.by((): PlayerScreen => {
+    const name = router.current?.name ?? '';
+    const wanted = (PLAYER_SCREENS.includes(name) ? name : features.feed ? 'bacheca' : 'azioni') as PlayerScreen;
+    if (wanted === 'bacheca' && !features.feed) return 'azioni';
+    if (wanted === 'classifica' && !features.leaderboard) return 'azioni';
+    if ((wanted === 'chat' || wanted === 'conversazione') && !features.chat) return 'azioni';
+    return wanted;
+  });
+
+  // Keeps the address in line when a switched-off screen fell back to the actions.
+  $effect(() => {
     const name = router.current?.name;
-    return name === 'azioni' || name === 'classifica' || name === 'profilo' || name === 'giocatore' || name === 'regole'
-      ? name
-      : 'bacheca';
+    if (app.kind === 'playing' && playerScreen === 'azioni' && name && name !== 'azioni' && PLAYER_SCREENS.includes(name)) {
+      router.go({ name: 'azioni' });
+    }
   });
 
   const playerTab = $derived.by((): PlayerTab => {
-    if (playerScreen === 'giocatore') return 'classifica';
+    if (playerScreen === 'giocatore') return features.leaderboard ? 'classifica' : 'profilo';
+    if (playerScreen === 'conversazione') return 'chat';
     if (playerScreen === 'regole') return 'profilo';
     return playerScreen;
   });
+
+  const playerTabs = $derived(
+    PLAYER_TABS.filter((tab) => tab.feature === null || features[tab.feature]).map((tab) =>
+      tab.id === 'chat' && app.kind === 'playing' ? { ...tab, badge: app.chatList.unread } : tab,
+    ),
+  );
 
   const adminTab = $derived.by((): AdminTab => {
     const name = router.current?.name;
@@ -97,6 +125,24 @@
     const playerId = route?.name === 'giocatore' ? route.id : route?.name === 'profilo' ? session.player.id : null;
     return playerId ? new ProfileState(deps, session, playerId, sessionLost) : null;
   });
+
+  /** A fresh conversation state for every open chat. */
+  const conversation = $derived.by(() => {
+    if (app.kind !== 'playing' || router.current?.name !== 'conversazione') return null;
+    const { chatList } = app;
+    return new ConversationState(deps, chatList.session, router.current.id, {
+      onSessionLost: sessionLost,
+      onRead: () => void chatList.refresh(),
+    });
+  });
+
+  async function messagePlayer(playerId: string) {
+    if (app.kind !== 'playing') return;
+    const opened = await app.chatList.open(playerId);
+    if (opened.ok) router.go({ name: 'conversazione', id: opened.value });
+    else if (opened.error === 'disabled') toasts.show('La chat è spenta per questa serata', 'error');
+    else if (opened.error !== 'unauthorized') toasts.show('Non riesco ad aprire la chat', 'error');
+  }
 
   async function boot() {
     app = { kind: 'booting' };
@@ -122,12 +168,13 @@
     const links = new PhotoLinksCache(deps.links, session, sessionLost);
     const game = new GameState(deps, session, { onSessionLost: sessionLost });
     const feed = new FeedState(deps, session, sessionLost);
-    app = { kind: 'playing', game, feed, links };
+    const chatList = new ChatListState(deps, session, sessionLost);
+    app = { kind: 'playing', game, feed, chatList, links };
     void game.start();
     void feed.start();
-    const name = router.current?.name;
-    const inGame = name === 'bacheca' || name === 'azioni' || name === 'classifica' || name === 'profilo' || name === 'giocatore';
-    if (!inGame) router.go({ name: 'bacheca' });
+    chatList.start();
+    const name = router.current?.name ?? '';
+    if (!PLAYER_SCREENS.includes(name) || name === 'regole') router.go({ name: 'bacheca' });
   }
 
   function sessionLost() {
@@ -148,6 +195,7 @@
     if (app.kind === 'playing') {
       app.game.stop();
       app.feed.stop();
+      app.chatList.stop();
     }
     if (app.kind === 'administering') app.admin.stop();
   }
@@ -240,12 +288,25 @@
         <ActionsScreen game={app.game} links={app.links} haptics={deps.haptics} />
       {:else if playerScreen === 'classifica'}
         <ParticipantsScreen game={app.game} links={app.links} />
+      {:else if playerScreen === 'chat'}
+        <ChatListScreen list={app.chatList} links={app.links} />
+      {:else if playerScreen === 'conversazione' && conversation}
+        <ConversationScreen
+          {conversation}
+          links={app.links}
+          recorder={deps.recorder}
+          haptics={deps.haptics}
+          onback={() => router.go({ name: 'chat' })}
+        />
       {:else if (playerScreen === 'profilo' || playerScreen === 'giocatore') && profile}
+        {@const other = profile.playerId}
         <ProfileScreen
           {profile}
           game={app.game}
           links={app.links}
+          showRank={features.leaderboard}
           onback={playerScreen === 'giocatore' ? () => history.back() : undefined}
+          onmessage={features.chat && !profile.isMine ? () => messagePlayer(other) : undefined}
         >
           {#snippet footer()}
             {#if profile.isMine}
@@ -265,7 +326,9 @@
       {/if}
     </div>
   {/key}
-  <TabBar tabs={PLAYER_TABS} active={playerTab} />
+  {#if playerScreen !== 'conversazione'}
+    <TabBar tabs={playerTabs} active={playerTab} />
+  {/if}
 
   {#snippet logoutActions()}
     <Button variant="danger" block onclick={() => signOut()}>Esci</Button>

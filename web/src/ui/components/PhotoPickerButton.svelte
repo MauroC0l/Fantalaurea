@@ -8,11 +8,13 @@
     block?: boolean;
     loading?: boolean;
     disabled?: boolean;
+    /** Opens the camera straight away instead of letting the phone ask. */
+    camera?: boolean;
     onpick: (file: File) => void;
     children: Snippet;
   }
 
-  let { variant = 'primary', size = 'regular', block = false, loading = false, disabled = false, onpick, children }: Props = $props();
+  let { variant = 'primary', size = 'regular', block = false, loading = false, disabled = false, camera = false, onpick, children }: Props = $props();
 
   let input = $state<HTMLInputElement>();
 
@@ -25,7 +27,7 @@
 </script>
 
 <!-- The native input stays hidden: only the OS picker (camera / gallery) is system UI. -->
-<input bind:this={input} type="file" accept="image/*" hidden onchange={picked} />
+<input bind:this={input} type="file" accept="image/*" capture={camera ? 'environment' : undefined} hidden onchange={picked} />
 <Button {variant} {size} {block} {loading} {disabled} onclick={() => input?.click()}>
   {@render children()}
 </Button>

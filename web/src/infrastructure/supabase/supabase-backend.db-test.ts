@@ -3,12 +3,16 @@ import { SessionExpiredError, type PreparedPhoto } from '../../application/ports
 import type { JoinRequest } from '../../domain/evening';
 import type { AdminSession, PlayerSession } from '../../domain/player';
 import { SupabaseBackend } from './supabase-backend';
+import { SupabaseChat } from './supabase-chat';
+import { createSupabaseClient } from './supabase-client';
 
 // Default values of every local Supabase CLI stack.
 const LOCAL_URL = 'http://127.0.0.1:54321';
 const LOCAL_KEY = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
 
-const backend = new SupabaseBackend(LOCAL_URL, LOCAL_KEY, { notifyDebounceMs: 0 });
+const client = createSupabaseClient(LOCAL_URL, LOCAL_KEY);
+const backend = new SupabaseBackend(client, LOCAL_URL, { notifyDebounceMs: 0 });
+const chat = new SupabaseChat(client, LOCAL_URL);
 
 const photo = (): PreparedPhoto => ({
   full: new Blob(['full'], { type: 'image/jpeg' }),
@@ -74,7 +78,7 @@ describe('entering the evening', () => {
   });
 
   it('refuses every read without a valid session', async () => {
-    const forged = { role: 'player', token: '00000000-0000-0000-0000-000000000000', player: { id: 'x', nickname: 'x', realName: 'x' } } as const;
+    const forged = { role: 'player', token: '00000000-0000-0000-0000-000000000000', inboxKey: 'x', player: { id: 'x', nickname: 'x', realName: 'x' } } as const;
     await expect(backend.catalog(forged)).rejects.toBeInstanceOf(SessionExpiredError);
     await expect(backend.feed(forged, null)).rejects.toBeInstanceOf(SessionExpiredError);
   });
@@ -209,5 +213,75 @@ describe('admin actions', () => {
 
   it('no longer offers the intimate-photo action', async () => {
     expect((await backend.catalog(admin)).some((a) => a.id === 'bonus-foto-intima')).toBe(false);
+  });
+});
+
+describe('features', () => {
+  it('lets the admin switch features off, and the server enforces it', async () => {
+    const alice = await asPlayer('Alice');
+    expect(await backend.features(alice)).toEqual({ chat: true, feed: true, leaderboard: true });
+    await backend.setFeature(admin, 'feed', false);
+    expect((await backend.features(alice)).feed).toBe(false);
+    expect(await backend.createPost(alice, photo(), 'no')).toEqual({ ok: false, error: 'disabled' });
+    await backend.setFeature(admin, 'feed', true);
+  });
+});
+
+describe('chat', () => {
+  const voice = () => ({ blob: new Blob(['voce'], { type: 'audio/mp4' }), mime: 'audio/mp4', durationMs: 1500 });
+
+  it('opens one conversation per pair and exchanges text, photos and voice', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    const opened = await chat.open(alice, bob.player.id);
+    if (!opened.ok) throw new Error('open');
+    expect(await chat.open(bob, alice.player.id)).toEqual(opened);
+    expect(await chat.open(alice, alice.player.id)).toEqual({ ok: false, error: 'rejected' });
+
+    await chat.sendText(alice, opened.value, 'Ciao!');
+    await chat.sendPhoto(alice, opened.value, photo());
+    const [bobConversation] = await chat.conversations(bob);
+    expect(bobConversation).toMatchObject({ other: { nickname: 'Alice' }, unread: 2 });
+    await chat.markRead(bob, opened.value);
+    expect((await chat.conversations(bob))[0].unread).toBe(0);
+
+    // Replying counts as reading: the sender never has unread messages of their own.
+    await chat.sendVoice(bob, opened.value, voice());
+    expect((await chat.conversations(alice))[0]).toMatchObject({ unread: 1, last: { kind: 'voice', mine: false } });
+
+    const messages = await chat.messages(bob, opened.value, null);
+    expect(messages.map((m) => m.kind)).toEqual(['voice', 'photo', 'text']);
+
+    const links = await chat.mediaLinks(bob, messages.map((m) => m.id));
+    expect(links.size).toBe(2);
+    expect((await fetch(links.get(messages[1].id)!.thumbnailUrl!)).status).toBe(200);
+  });
+
+  it('keeps conversations private and lets only the sender delete a message', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    const carl = await asPlayer('Carl');
+    const opened = await chat.open(alice, bob.player.id);
+    if (!opened.ok) throw new Error('open');
+    await chat.sendPhoto(alice, opened.value, photo());
+    const [message] = await chat.messages(alice, opened.value, null);
+
+    expect(await chat.messages(carl, opened.value, null)).toEqual([]);
+    expect(await chat.conversation(carl, opened.value)).toBeNull();
+    expect((await chat.mediaLinks(carl, [message.id])).size).toBe(0);
+    expect(await chat.deleteMessage(bob, message.id)).toEqual({ ok: false, error: 'rejected' });
+    expect(await chat.deleteMessage(alice, message.id)).toEqual({ ok: true, value: undefined });
+    expect(await chat.messages(bob, opened.value, null)).toEqual([]);
+  });
+
+  it('refuses messages when the admin switches the chat off', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    const opened = await chat.open(alice, bob.player.id);
+    if (!opened.ok) throw new Error('open');
+    await backend.setFeature(admin, 'chat', false);
+    expect(await chat.sendText(alice, opened.value, 'ehi')).toEqual({ ok: false, error: 'disabled' });
+    expect(await chat.sendVoice(alice, opened.value, voice())).toEqual({ ok: false, error: 'disabled' });
+    await backend.setFeature(admin, 'chat', true);
   });
 });

@@ -9,7 +9,9 @@
   import ScreenHeader from '../../ui/components/ScreenHeader.svelte';
   import SegmentedControl from '../../ui/components/SegmentedControl.svelte';
   import Surface from '../../ui/components/Surface.svelte';
+  import Switch from '../../ui/components/Switch.svelte';
   import TextField from '../../ui/components/TextField.svelte';
+  import type { FeatureName } from '../../domain/features';
   import { toasts } from '../../ui/components/toasts.svelte';
   import { describeDevice } from '../labels';
   import type { AdminState } from './admin-state.svelte';
@@ -45,6 +47,17 @@
   let wordError = $state<string>();
 
   const close = () => (dialog = { kind: 'none' });
+
+  const FEATURES: readonly { name: FeatureName; label: string; description: string }[] = [
+    { name: 'feed', label: 'Bacheca', description: 'Post, foto delle azioni e like visibili a tutti' },
+    { name: 'chat', label: 'Chat', description: 'Messaggi privati, foto e vocali tra giocatori' },
+    { name: 'leaderboard', label: 'Classifica', description: 'Chi è in testa. I punti restano comunque' },
+  ];
+
+  async function toggleFeature(feature: FeatureName, enabled: boolean) {
+    const result = await admin.setFeature(feature, enabled);
+    if (!result.ok) report(result.error);
+  }
 
   function report(failure: WriteFailure) {
     if (failure === 'unauthorized') onunauthorized();
@@ -130,6 +143,22 @@
       </div>
     </div>
   </Surface>
+
+  <section class="section">
+    <h2>Funzioni della serata</h2>
+    <Surface>
+      <div class="switches">
+        {#each FEATURES as feature (feature.name)}
+          <Switch
+            checked={admin.features[feature.name]}
+            label={feature.label}
+            description={feature.description}
+            onchange={(enabled) => toggleFeature(feature.name, enabled)}
+          />
+        {/each}
+      </div>
+    </Surface>
+  </section>
 
   <section class="section">
     <h2>Accessi admin <span class="count">{admin.accessLog.length}</span></h2>
@@ -269,6 +298,11 @@
 
   .muted {
     font-size: var(--text-sm);
+  }
+
+  .switches {
+    display: grid;
+    gap: var(--space-3);
   }
 
   .log {

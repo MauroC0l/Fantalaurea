@@ -7,6 +7,8 @@ export type Route =
   | { readonly name: 'classifica' }
   | { readonly name: 'profilo' }
   | { readonly name: 'giocatore'; readonly id: string }
+  | { readonly name: 'chat' }
+  | { readonly name: 'conversazione'; readonly id: string }
   | { readonly name: 'admin' }
   | { readonly name: 'album' }
   | { readonly name: 'serata' };
@@ -21,6 +23,7 @@ export const SIMPLE_ROUTES: readonly RouteName[] = [
   'azioni',
   'classifica',
   'profilo',
+  'chat',
   'admin',
   'album',
   'serata',
@@ -28,6 +31,6 @@ export const SIMPLE_ROUTES: readonly RouteName[] = [
 
 /** Screens link with hrefs; app/router.svelte.ts turns the URL back into a Route. */
 export function hrefTo(route: Route): string {
-  return route.name === 'giocatore' ? `#/giocatore/${route.id}` : `#/${route.name}`;
+  return 'id' in route ? `#/${route.name}/${route.id}` : `#/${route.name}`;
 }
 

@@ -4,7 +4,7 @@ export { hrefTo, type Route } from '../features/routes';
 
 function parse(hash: string): Route | null {
   const [name, id] = hash.replace(/^#\/?/, '').split('/');
-  if (name === 'giocatore' && id) return { name, id };
+  if ((name === 'giocatore' || name === 'conversazione') && id) return { name, id };
   return (SIMPLE_ROUTES as readonly string[]).includes(name) ? ({ name } as Route) : null;
 }
 

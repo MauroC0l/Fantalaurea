@@ -1,10 +1,16 @@
 import type { Action, ActionDraft } from '../domain/action';
+import type { ChatMessage, ChatPeer, ConversationSummary, VoiceRecording } from '../domain/chat';
 import type { Completion } from '../domain/completion';
 import type { AccessLogEntry, JoinRequest } from '../domain/evening';
+import type { FeatureName, Features } from '../domain/features';
 import type { FeedItem, Liker } from '../domain/feed';
 import type { AdminSession, Participant, PlayerSession, Session } from '../domain/player';
 import type { Profile } from '../domain/profile';
 import type { Result } from '../domain/result';
+
+/** Pages hold at most this many items: a shorter page means there is nothing older. */
+export const FEED_PAGE_SIZE = 20;
+export const CHAT_PAGE_SIZE = 40;
 
 /** The backend could not be reached or failed unexpectedly. */
 export type Unavailable = 'unavailable';
@@ -19,6 +25,8 @@ export type ResumeFailure = 'unknown-token' | Unavailable;
 export type WriteFailure = 'unauthorized' | 'rejected' | Unavailable;
 export type CompleteFailure = WriteFailure | 'photo-required';
 export type UpdateActionFailure = WriteFailure | 'kind-locked';
+/** The admin switched the feature off for this evening. */
+export type FeatureFailure = WriteFailure | 'disabled';
 
 /** Thrown by reads when the token is no longer valid (evening reset, players sent out). */
 export class SessionExpiredError extends Error {
@@ -42,7 +50,8 @@ export type ChangedTable =
   | 'shared_completions'
   | 'posts'
   | 'likes'
-  | 'sessions';
+  | 'sessions'
+  | 'evening_settings';
 
 /** Reads reject with SessionExpiredError, or any other error when the backend is unavailable. */
 export interface GameBoard {
@@ -54,6 +63,7 @@ export interface GameBoard {
   feed(session: Session, before: Date | null): Promise<readonly FeedItem[]>;
   profile(session: Session, playerId: string): Promise<Profile | null>;
   likers(session: Session, targetId: string): Promise<readonly Liker[]>;
+  features(session: Session): Promise<Features>;
   /** Notifies which table changed; returns the unsubscribe function. */
   onChange(listener: (table: ChangedTable) => void): () => void;
 }
@@ -96,7 +106,7 @@ export interface PlayerMoves {
   /** Works for action photos, post photos (deletes the post) and the profile photo. */
   deleteOwnPhoto(session: PlayerSession, photoId: string): Promise<Result<PhotoDeletion, WriteFailure>>;
   toggleLike(session: PlayerSession, targetId: string): Promise<Result<{ liked: boolean }, WriteFailure>>;
-  createPost(session: PlayerSession, photo: PreparedPhoto, caption: string): Promise<Result<void, WriteFailure>>;
+  createPost(session: PlayerSession, photo: PreparedPhoto, caption: string): Promise<Result<void, FeatureFailure>>;
   deletePost(session: PlayerSession, postId: string): Promise<Result<void, WriteFailure>>;
   updateBio(session: PlayerSession, bio: string): Promise<Result<void, WriteFailure>>;
   setAvatar(session: PlayerSession, photo: PreparedPhoto): Promise<Result<void, WriteFailure>>;
@@ -114,8 +124,42 @@ export interface EveningAdmin {
   /** `word` null = draw a new one. Returns the word now in force. */
   setSecretWord(session: AdminSession, word: string | null, sendPlayersOut: boolean): Promise<Result<string, WriteFailure>>;
   accessLog(session: AdminSession): Promise<Result<readonly AccessLogEntry[], WriteFailure>>;
+  setFeature(session: AdminSession, feature: FeatureName, enabled: boolean): Promise<Result<void, WriteFailure>>;
   /** Removes players, completions, posts, photos and the access log; draws a new secret word. */
   resetEvening(session: AdminSession): Promise<Result<void, WriteFailure>>;
+}
+
+export interface ChatMediaLinks {
+  readonly url: string;
+  /** Photos only. */
+  readonly thumbnailUrl?: string;
+}
+
+/** Private conversations between two players (ADR 0015). Reads reject like GameBoard's. */
+export interface Chat {
+  conversations(session: PlayerSession): Promise<readonly ConversationSummary[]>;
+  conversation(session: PlayerSession, conversationId: string): Promise<{ id: string; other: ChatPeer } | null>;
+  /** Newest first, older than `before` when given. */
+  messages(session: PlayerSession, conversationId: string, before: Date | null): Promise<readonly ChatMessage[]>;
+  mediaLinks(session: PlayerSession, messageIds: readonly string[]): Promise<ReadonlyMap<string, ChatMediaLinks>>;
+  open(session: PlayerSession, otherPlayerId: string): Promise<Result<string, FeatureFailure>>;
+  sendText(session: PlayerSession, conversationId: string, text: string): Promise<Result<void, FeatureFailure>>;
+  sendPhoto(session: PlayerSession, conversationId: string, photo: PreparedPhoto): Promise<Result<void, FeatureFailure>>;
+  sendVoice(session: PlayerSession, conversationId: string, voice: VoiceRecording): Promise<Result<void, FeatureFailure>>;
+  deleteMessage(session: PlayerSession, messageId: string): Promise<Result<void, WriteFailure>>;
+  markRead(session: PlayerSession, conversationId: string): Promise<void>;
+  /** A conversation of this player changed: new or deleted message. */
+  onInbox(session: PlayerSession, listener: (conversationId: string) => void): () => void;
+}
+
+export type RecordingFailure = 'denied' | 'unsupported';
+
+export interface VoiceRecorder {
+  /** Asks for the microphone the first time (a system dialog). */
+  start(): Promise<Result<void, RecordingFailure>>;
+  /** A recording reaching the maximum length stops by itself; stop() still returns it. */
+  stop(): Promise<VoiceRecording | null>;
+  cancel(): void;
 }
 
 export type PhotoShape = 'original' | 'square';

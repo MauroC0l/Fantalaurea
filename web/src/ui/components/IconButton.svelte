@@ -7,12 +7,14 @@
     icon: IconName;
     label: string;
     danger?: boolean;
+    /** The main action of a bar, e.g. send: party gradient. */
+    primary?: boolean;
   }
 
-  let { icon, label, danger = false, ...rest }: Props = $props();
+  let { icon, label, danger = false, primary = false, ...rest }: Props = $props();
 </script>
 
-<button {...rest} class="icon-button" class:danger aria-label={label} title={label}>
+<button {...rest} class="icon-button" class:danger class:primary aria-label={label} title={label}>
   <Icon name={icon} size={20} />
 </button>
 
@@ -34,6 +36,18 @@
 
   .icon-button:active {
     transform: scale(0.88);
+  }
+
+  .primary {
+    background: var(--gradient-party);
+    border-color: transparent;
+    color: var(--color-on-accent);
+    box-shadow: var(--shadow-glow);
+  }
+
+  .icon-button:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   .danger {

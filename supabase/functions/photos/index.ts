@@ -1,4 +1,4 @@
-// The only code that touches photo files (ADR 0008, 0012). It checks the app's own tokens, runs
+// The only code that touches photo and chat files (ADR 0008, 0012, 0015). It checks the app's own tokens, runs
 // the service-only SQL functions and keeps the private bucket in sync with the database.
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
@@ -50,6 +50,10 @@ async function route(request: Request): Promise<Reply> {
         return createPost(form);
       case 'avatar':
         return setAvatar(form);
+      case 'chat-photo':
+        return sendChatPhoto(form);
+      case 'chat-voice':
+        return sendChatVoice(form);
       default:
         return REJECTED;
     }
@@ -70,9 +74,169 @@ async function route(request: Request): Promise<Reply> {
       return removeAction(body.token, body.actionId);
     case 'reset':
       return resetEvening(body.token);
+    case 'chat-media':
+      return chatMedia(body.token, body.messageIds);
+    case 'delete-message':
+      return deleteMessage(body.token, body.messageId);
     default:
       return REJECTED;
   }
+}
+
+// ------------------------------------------------------------------ chat (ADR 0015)
+
+const CHAT_BUCKET = 'chat';
+const MAX_VOICE_BYTES = 3 * 1024 * 1024;
+const MAX_VOICE_MS = 60_000;
+const VOICE_EXTENSIONS: Record<string, string> = {
+  'audio/webm': 'webm',
+  'audio/mp4': 'm4a',
+  'audio/ogg': 'ogg',
+  'audio/mpeg': 'mp3',
+  'audio/aac': 'aac',
+};
+
+type MediaReply = { status: string; recipientInbox?: string };
+
+async function sendChatPhoto(form: FormData): Promise<Reply> {
+  const playerId = await playerOf(form.get('token'));
+  if (!playerId) return UNAUTHORIZED;
+  const conversationId = form.get('conversationId');
+  const full = form.get('full');
+  const thumbnail = form.get('thumbnail');
+  if (!isUuid(conversationId) || !isJpeg(full, MAX_FULL_BYTES) || !isJpeg(thumbnail, MAX_THUMBNAIL_BYTES)) return REJECTED;
+
+  const mediaId = crypto.randomUUID();
+  await uploadTo(CHAT_BUCKET, chatPhotoPath(mediaId), full, 'image/jpeg');
+  await uploadTo(CHAT_BUCKET, chatThumbnailPath(mediaId), thumbnail, 'image/jpeg');
+  const result = await call<MediaReply>('svc_send_media', {
+    p_player: playerId,
+    p_conversation: conversationId,
+    p_kind: 'photo',
+    p_media_id: mediaId,
+    p_mime: 'image/jpeg',
+    p_duration_ms: null,
+  });
+  if (result.status !== 'ok') await removeChatFiles([chatPhotoPath(mediaId), chatThumbnailPath(mediaId)]);
+  return result;
+}
+
+async function sendChatVoice(form: FormData): Promise<Reply> {
+  const playerId = await playerOf(form.get('token'));
+  if (!playerId) return UNAUTHORIZED;
+  const conversationId = form.get('conversationId');
+  const audio = form.get('audio');
+  const durationMs = Number(form.get('durationMs'));
+  const mime = audio instanceof File ? audio.type.split(';')[0] : '';
+  if (
+    !isUuid(conversationId) ||
+    !(audio instanceof File) ||
+    audio.size === 0 ||
+    audio.size > MAX_VOICE_BYTES ||
+    !(mime in VOICE_EXTENSIONS) ||
+    !Number.isFinite(durationMs) ||
+    durationMs <= 0 ||
+    durationMs > MAX_VOICE_MS + 5_000
+  ) {
+    return REJECTED;
+  }
+
+  const mediaId = crypto.randomUUID();
+  const path = voicePath(mediaId, mime);
+  await uploadTo(CHAT_BUCKET, path, audio, mime);
+  const result = await call<MediaReply>('svc_send_media', {
+    p_player: playerId,
+    p_conversation: conversationId,
+    p_kind: 'voice',
+    p_media_id: mediaId,
+    p_mime: mime,
+    p_duration_ms: Math.round(durationMs),
+  });
+  if (result.status !== 'ok') await removeChatFiles([path]);
+  return result;
+}
+
+interface ChatMediaRow {
+  message_id: string;
+  kind: 'photo' | 'voice';
+  media_id: string;
+  media_mime: string;
+}
+
+/** Only the two people in the conversation get links to its media. */
+async function chatMedia(token: unknown, messageIds: unknown): Promise<Reply> {
+  const playerId = await playerOf(token);
+  if (!playerId) return UNAUTHORIZED;
+  if (!Array.isArray(messageIds) || messageIds.length > MAX_LINKS_PER_REQUEST || !messageIds.every(isUuid)) return REJECTED;
+  const rows = await call<ChatMediaRow[]>('svc_chat_media', { p_player: playerId, p_message_ids: messageIds });
+  const paths = rows.flatMap((row) =>
+    row.kind === 'photo' ? [chatPhotoPath(row.media_id), chatThumbnailPath(row.media_id)] : [voicePath(row.media_id, row.media_mime)],
+  );
+  if (paths.length === 0) return { status: 'ok', media: {} };
+  const { data, error } = await db.storage.from(CHAT_BUCKET).createSignedUrls(paths, LINK_TTL_SECONDS);
+  if (error) throw error;
+  const byPath = new Map(data.map((item) => [item.path, withoutHost(item.signedUrl)]));
+  const media = Object.fromEntries(
+    rows.map((row) => [
+      row.message_id,
+      row.kind === 'photo'
+        ? { url: byPath.get(chatPhotoPath(row.media_id)), thumbnailUrl: byPath.get(chatThumbnailPath(row.media_id)) }
+        : { url: byPath.get(voicePath(row.media_id, row.media_mime)) },
+    ]),
+  );
+  return { status: 'ok', media };
+}
+
+async function deleteMessage(token: unknown, messageId: unknown): Promise<Reply> {
+  const playerId = await playerOf(token);
+  if (!playerId) return UNAUTHORIZED;
+  if (!isUuid(messageId)) return REJECTED;
+  const result = await call<{ status: string; kind?: string; mediaId?: string; mime?: string; recipientInbox?: string }>(
+    'svc_delete_message',
+    { p_player: playerId, p_message: messageId },
+  );
+  if (result.status !== 'ok') return { status: result.status };
+  if (result.kind === 'photo' && result.mediaId) {
+    await removeChatFiles([chatPhotoPath(result.mediaId), chatThumbnailPath(result.mediaId)]);
+  }
+  if (result.kind === 'voice' && result.mediaId && result.mime) await removeChatFiles([voicePath(result.mediaId, result.mime)]);
+  return { status: 'ok', recipientInbox: result.recipientInbox };
+}
+
+/** Evening over: every chat file goes, whoever sent it. */
+async function emptyChatBucket(): Promise<void> {
+  for (const folder of ['photo', 'voice']) {
+    // Bounded: a removal that keeps failing must not loop forever (1000 files per round).
+    for (let round = 0; round < 50; round++) {
+      const { data, error } = await db.storage.from(CHAT_BUCKET).list(folder, { limit: 1000 });
+      if (error) throw error;
+      if (data.length === 0) break;
+      await removeChatFiles(data.map((file) => `${folder}/${file.name}`));
+    }
+  }
+}
+
+function chatPhotoPath(mediaId: string): string {
+  return `photo/${mediaId}.jpg`;
+}
+
+function chatThumbnailPath(mediaId: string): string {
+  return `photo/${mediaId}-thumb.jpg`;
+}
+
+function voicePath(mediaId: string, mime: string): string {
+  return `voice/${mediaId}.${VOICE_EXTENSIONS[mime] ?? 'bin'}`;
+}
+
+async function uploadTo(bucket: string, path: string, file: File, contentType: string): Promise<void> {
+  const { error } = await db.storage.from(bucket).upload(path, file, { contentType });
+  if (error) throw error;
+}
+
+async function removeChatFiles(paths: string[]): Promise<void> {
+  if (paths.length === 0) return;
+  const { error } = await db.storage.from(CHAT_BUCKET).remove(paths);
+  if (error) console.error('orphan chat files', paths, error);
 }
 
 async function completeWithPhoto(form: FormData): Promise<Reply> {
@@ -196,6 +360,7 @@ async function removeAction(token: unknown, actionId: unknown): Promise<Reply> {
 async function resetEvening(token: unknown): Promise<Reply> {
   if (!(await isAdmin(token))) return UNAUTHORIZED;
   await removeFiles(await call<string[]>('svc_reset_evening', {}));
+  await emptyChatBucket();
   return OK;
 }
 

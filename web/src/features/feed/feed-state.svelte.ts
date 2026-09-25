@@ -1,4 +1,5 @@
 import {
+  FEED_PAGE_SIZE,
   SessionExpiredError,
   type ChangedTable,
   type GameBoard,
@@ -61,7 +62,7 @@ export class FeedState {
     this.loadingMore = true;
     try {
       const page = await this.#deps.board.feed(this.session, oldest.createdAt);
-      this.hasMore = page.length > 0;
+      this.hasMore = page.length === FEED_PAGE_SIZE;
       this.items = mergeFeed(this.items, page);
     } catch (error) {
       this.#fail(error);
@@ -113,9 +114,12 @@ export class FeedState {
   /** Reloads the first page; items that disappeared from it (undone, deleted) go away too. */
   async #loadNewest(): Promise<void> {
     const page = await this.#deps.board.feed(this.session, null);
-    const oldestInPage = page.at(-1)?.createdAt.getTime() ?? -Infinity;
-    const olderPages = this.items.filter((item) => item.createdAt.getTime() < oldestInPage);
+    // A short page is the whole feed: nothing older to keep.
+    const complete = page.length < FEED_PAGE_SIZE;
+    const oldestInPage = page.at(-1)?.createdAt.getTime() ?? Infinity;
+    const olderPages = complete ? [] : this.items.filter((item) => item.createdAt.getTime() < oldestInPage);
     this.items = mergeFeed(olderPages, page);
+    if (complete) this.hasMore = false;
   }
 
   #replace(item: FeedItem): void {

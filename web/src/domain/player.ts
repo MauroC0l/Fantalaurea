@@ -18,6 +18,8 @@ export interface PlayerSession {
   readonly role: 'player';
   readonly player: Player;
   readonly token: string;
+  /** Secret channel where chat signals for this player arrive (ADR 0015). */
+  readonly inboxKey: string;
 }
 
 /** The admin manages the evening but is not a player: it has no counts and no ranking. */

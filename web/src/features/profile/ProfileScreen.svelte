@@ -32,9 +32,22 @@
     footer?: Snippet;
     /** Back arrow, for other players' profiles. */
     onback?: () => void;
+    /** Present when the chat is on: opens a conversation with this player. */
+    onmessage?: () => Promise<void>;
+    /** The admin may switch the leaderboard off (ADR 0014). */
+    showRank?: boolean;
   }
 
-  let { profile, game, links, footer, onback }: Props = $props();
+  let { profile, game, links, footer, onback, onmessage, showRank = true }: Props = $props();
+
+  let opening = $state(false);
+
+  async function openChat() {
+    if (!onmessage) return;
+    opening = true;
+    await onmessage();
+    opening = false;
+  }
 
   let editingBio = $state<string | null>(null);
   let busy = $state(false);
@@ -113,13 +126,15 @@
             <IconButton icon="trash" label="Togli la foto profilo" danger disabled={busy} onclick={removeAvatar} />
           {/if}
         </div>
+      {:else if onmessage}
+        <Button size="small" loading={opening} onclick={openChat}><Icon name="chat" size={16} /> Invia messaggio</Button>
       {/if}
     </section>
 
     <Surface>
-      <dl class="stats">
+      <dl class="stats" class:two={!showRank}>
         <div><dt>Punti</dt><dd>{stats?.points ?? 0}</dd></div>
-        <div><dt>Posizione</dt><dd>{rank > 0 ? `${rank}°` : '—'}</dd></div>
+        {#if showRank}<div><dt>Posizione</dt><dd>{rank > 0 ? `${rank}°` : '—'}</dd></div>{/if}
         <div><dt>Azioni</dt><dd>{stats?.actionsDone ?? 0}</dd></div>
       </dl>
     </Surface>
@@ -232,6 +247,10 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     text-align: center;
+  }
+
+  .stats.two {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   dt {

@@ -10,6 +10,7 @@ import {
 } from '../../application/ports';
 import type { Action } from '../../domain/action';
 import { isOwnedBy, type Completion, type Completions } from '../../domain/completion';
+import { ALL_FEATURES_ON, type Features } from '../../domain/features';
 import { rankParticipants, type Participant, type PlayerSession } from '../../domain/player';
 import { err, type Result } from '../../domain/result';
 
@@ -32,6 +33,7 @@ const RELEVANT: ReadonlySet<ChangedTable> = new Set([
   'player_completions',
   'shared_completions',
   'sessions',
+  'evening_settings',
 ]);
 
 /** Live view of one player's evening: the actions still to do, those done, and the ranking. */
@@ -42,6 +44,8 @@ export class GameState {
   completions = $state.raw<Completions>(new Map());
   participants = $state.raw<readonly Participant[]>([]);
   busy = $state.raw<ReadonlySet<string>>(new Set());
+  /** What the admin switched on for this evening (ADR 0014). */
+  features = $state.raw<Features>(ALL_FEATURES_ON);
 
   readonly me = $derived(this.participants.find((p) => p.player.id === this.session.player.id));
   readonly todo = $derived(this.catalog.filter((action) => !this.completions.has(action.id)));
@@ -136,11 +140,13 @@ export class GameState {
 
   async #refreshAll(): Promise<void> {
     const { board } = this.#deps;
-    const [catalog, completions, participants] = await Promise.all([
+    const [catalog, completions, participants, features] = await Promise.all([
       board.catalog(this.session),
       board.completionsOf(this.session),
       board.participants(this.session),
+      board.features(this.session),
     ]);
+    this.features = features;
     this.catalog = catalog;
     this.completions = new Map(completions.map((completion) => [completion.actionId, completion]));
     this.participants = rankParticipants(participants);

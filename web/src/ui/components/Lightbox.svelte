@@ -165,8 +165,42 @@
 
   .bottom {
     display: grid;
+    align-content: start;
     gap: var(--space-3);
+    /* A long caption scrolls instead of squeezing the photo to nothing. */
+    max-height: 45dvh;
+    overflow-y: auto;
     padding: var(--space-4) var(--space-4) calc(var(--space-4) + var(--safe-bottom));
+    overflow-wrap: anywhere;
+  }
+
+  /* On a computer: photo on the left, details in a side panel. */
+  @media (min-width: 900px) {
+    .lightbox {
+      grid-template-columns: minmax(0, 1fr) 380px;
+      grid-template-rows: auto minmax(0, 1fr);
+    }
+
+    .top {
+      grid-column: 1 / -1;
+    }
+
+    img {
+      inset: 0 var(--space-6) var(--space-6);
+      max-width: calc(100% - 2 * var(--space-6));
+      max-height: calc(100% - var(--space-6));
+    }
+
+    .bottom {
+      grid-column: 2;
+      grid-row: 2;
+      max-height: none;
+      margin: 0 var(--space-6) var(--space-6) 0;
+      padding: var(--space-5);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+    }
   }
 
   .caption {

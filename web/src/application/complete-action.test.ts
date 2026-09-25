@@ -5,7 +5,7 @@ import { ok } from '../domain/result';
 import { completeAction } from './complete-action';
 import type { PhotoProcessor, PlayerMoves } from './ports';
 
-const session: PlayerSession = { role: 'player', token: 't', player: { id: 'p', nickname: 'N', realName: 'R' } };
+const session: PlayerSession = { role: 'player', token: 't', inboxKey: 'k', player: { id: 'p', nickname: 'N', realName: 'R' } };
 const action = (photoPolicy: Action['photoPolicy']): Action => ({
   id: 'a', title: 'T', description: 'D', points: 0, kind: 'bonus', photoPolicy, difficulty: 'medium',
 });

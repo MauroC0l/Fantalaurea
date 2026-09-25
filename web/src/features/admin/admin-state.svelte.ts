@@ -2,6 +2,7 @@ import { SessionExpiredError, type EveningAdmin, type GameBoard, type WriteFailu
 import { saveAction, type ActionTarget, type SaveActionError } from '../../application/save-action';
 import type { Action, ActionDraft } from '../../domain/action';
 import type { AccessLogEntry } from '../../domain/evening';
+import { ALL_FEATURES_ON, type FeatureName, type Features } from '../../domain/features';
 import type { AdminSession } from '../../domain/player';
 import { ok, type Result } from '../../domain/result';
 import type { LoadStatus } from '../game/game-state.svelte';
@@ -13,6 +14,7 @@ export class AdminState {
   participantCount = $state(0);
   secretWord = $state<string | null>(null);
   accessLog = $state.raw<readonly AccessLogEntry[]>([]);
+  features = $state.raw<Features>(ALL_FEATURES_ON);
 
   readonly #board: GameBoard;
   readonly #admin: EveningAdmin;
@@ -63,6 +65,15 @@ export class AdminState {
     return result;
   }
 
+  /** Optimistic: the switch moves at once and goes back if the server refuses. */
+  async setFeature(feature: FeatureName, enabled: boolean): Promise<Result<void, WriteFailure>> {
+    const previous = this.features;
+    this.features = { ...previous, [feature]: enabled };
+    const result = await this.#admin.setFeature(this.session, feature, enabled);
+    if (!result.ok) this.features = previous;
+    return result;
+  }
+
   async resetEvening(): Promise<Result<void, WriteFailure>> {
     const result = await this.#admin.resetEvening(this.session);
     if (result.ok) await this.#refreshQuietly();
@@ -78,9 +89,10 @@ export class AdminState {
   }
 
   async #refresh(): Promise<void> {
-    const [catalog, participants, word, log] = await Promise.all([
+    const [catalog, participants, features, word, log] = await Promise.all([
       this.#board.catalog(this.session),
       this.#board.participants(this.session),
+      this.#board.features(this.session),
       this.#admin.secretWord(this.session),
       this.#admin.accessLog(this.session),
     ]);
@@ -89,6 +101,7 @@ export class AdminState {
     }
     this.catalog = catalog;
     this.participantCount = participants.length;
+    this.features = features;
     if (word.ok) this.secretWord = word.value;
     if (log.ok) this.accessLog = log.value;
   }

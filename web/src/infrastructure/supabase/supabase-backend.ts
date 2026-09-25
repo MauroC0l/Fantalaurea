@@ -1,10 +1,12 @@
-import { createClient, type PostgrestError, type RealtimeChannel, type SupabaseClient } from '@supabase/supabase-js';
+import type { PostgrestError, RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import {
+  FEED_PAGE_SIZE,
   SessionExpiredError,
   type AlbumPhoto,
   type ChangedTable,
   type CompleteFailure,
   type EveningAdmin,
+  type FeatureFailure,
   type GameBoard,
   type JoinFailure,
   type PhotoDeletion,
@@ -21,15 +23,17 @@ import {
 import type { Action, ActionDraft } from '../../domain/action';
 import type { Completion } from '../../domain/completion';
 import type { AccessLogEntry, JoinRequest } from '../../domain/evening';
+import type { FeatureName, Features } from '../../domain/features';
 import type { FeedItem, Liker } from '../../domain/feed';
 import type { AdminSession, Participant, PlayerSession, Session } from '../../domain/player';
 import type { Profile } from '../../domain/profile';
 import { err, ok, type Result } from '../../domain/result';
+import { absoluteUrl, asWriteFailure, invokePhotos, type FunctionReply } from './photos-function';
 
 // Shapes returned by supabase/migrations and supabase/functions/photos.
 type SessionRow =
   | { role: 'admin'; token: string }
-  | { role: 'player'; token: string; player: { id: string; nickname: string; realName: string } };
+  | { role: 'player'; token: string; inboxKey: string; player: { id: string; nickname: string; realName: string } };
 interface ActionRow {
   id: string;
   title: string;
@@ -83,13 +87,10 @@ interface ProfileJson {
   }[];
   posts: { id: string; photoId: string; caption: string; createdAt: string }[];
 }
-type FunctionReply<T = unknown> = { status: 'ok' } & T;
-type FunctionFailure = { status: 'unauthorized' | 'rejected' | 'error' };
 
 const CHANNEL = 'fantalaurea';
 const INVALID_TEXT_REPRESENTATION = '22P02';
 const INVALID_AUTHORIZATION = '28000';
-const PHOTOS_FUNCTION = 'photos';
 const MAX_LINKS_PER_REQUEST = 100;
 
 export interface SupabaseBackendOptions {
@@ -108,9 +109,9 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   #sender: RealtimeChannel | null = null;
   #notifyTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(url: string, publishableKey: string, options: SupabaseBackendOptions) {
-    this.#client = createClient(url, publishableKey, { auth: { persistSession: false } });
-    this.#url = url.replace(/\/$/, '');
+  constructor(client: SupabaseClient, url: string, options: SupabaseBackendOptions) {
+    this.#client = client;
+    this.#url = url;
     this.#options = options;
   }
 
@@ -181,7 +182,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     const rows = await this.#read<FeedRow[]>('feed', {
       p_token: session.token,
       p_before: before?.toISOString() ?? null,
-      p_limit: 20,
+      p_limit: FEED_PAGE_SIZE,
     });
     return rows.map(toFeedItem);
   }
@@ -194,6 +195,10 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
       completions: json.completions.map((c) => ({ ...c, completedAt: new Date(c.completedAt) })),
       posts: json.posts.map((p) => ({ ...p, createdAt: new Date(p.createdAt) })),
     };
+  }
+
+  features(session: Session): Promise<Features> {
+    return this.#read<Features>('features', { p_token: session.token });
   }
 
   async likers(session: Session, targetId: string): Promise<readonly Liker[]> {
@@ -257,8 +262,9 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     return reply.status === 'ok' ? this.#announceIfOk(['likes'], ok({ liked: reply.liked })) : err(reply.status);
   }
 
-  async createPost(session: PlayerSession, photo: PreparedPhoto, caption: string): Promise<Result<void, WriteFailure>> {
-    return this.#announceIfOk(['posts'], this.#toVoid(await this.#invoke(photoForm('post', session, photo, { caption }))));
+  async createPost(session: PlayerSession, photo: PreparedPhoto, caption: string): Promise<Result<void, FeatureFailure>> {
+    const reply = await invokePhotos(this.#client, photoForm('post', session, photo, { caption }));
+    return this.#announceIfOk(['posts'], this.#toVoid(reply));
   }
 
   async deletePost(session: PlayerSession, postId: string): Promise<Result<void, WriteFailure>> {
@@ -329,6 +335,16 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     return ok(reply.word);
   }
 
+  async setFeature(session: AdminSession, feature: FeatureName, enabled: boolean): Promise<Result<void, WriteFailure>> {
+    const { data, error } = await this.#client.rpc('admin_set_feature', {
+      p_token: session.token,
+      p_feature: feature,
+      p_enabled: enabled,
+    });
+    if (error) return err('unavailable');
+    return data === 'ok' ? this.#announceIfOk(['evening_settings'], ok(undefined)) : err(data as WriteFailure);
+  }
+
   async accessLog(session: AdminSession): Promise<Result<readonly AccessLogEntry[], WriteFailure>> {
     const { data, error } = await this.#client.rpc('admin_access_log', { p_token: session.token });
     if (error) return err(error.code === INVALID_AUTHORIZATION ? 'unauthorized' : 'unavailable');
@@ -355,11 +371,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   }
 
   async #invoke<T>(body: FormData | Record<string, unknown>): Promise<Result<FunctionReply<T>, WriteFailure>> {
-    const { data, error } = await this.#client.functions.invoke(PHOTOS_FUNCTION, { body });
-    if (error) return err('unavailable');
-    const reply = data as FunctionReply<T> | FunctionFailure;
-    if (reply.status === 'ok') return ok(reply as FunctionReply<T>);
-    return err(reply.status === 'error' ? 'unavailable' : reply.status);
+    return asWriteFailure(await invokePhotos<T>(this.#client, body));
   }
 
   #announceIfOk<T, E>(tables: readonly ChangedTable[], result: Result<T, E>): Result<T, E> {
@@ -384,13 +396,12 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     }
   }
 
-  #toVoid(result: Result<unknown, WriteFailure>): Result<void, WriteFailure> {
+  #toVoid<E>(result: Result<unknown, E>): Result<void, E> {
     return result.ok ? ok(undefined) : result;
   }
 
-  /** The function returns host-less links (see supabase/functions/photos). */
   #absolute(links: PhotoLinks): PhotoLinks {
-    return { thumbnailUrl: this.#url + links.thumbnailUrl, fullUrl: this.#url + links.fullUrl };
+    return { thumbnailUrl: absoluteUrl(this.#url, links.thumbnailUrl), fullUrl: absoluteUrl(this.#url, links.fullUrl) };
   }
 
   #ensureSubscribed(): void {
@@ -464,7 +475,7 @@ function photoForm(op: string, session: PlayerSession, photo: PreparedPhoto, fie
 function toSession(row: SessionRow): Session {
   return row.role === 'admin'
     ? { role: 'admin', token: row.token }
-    : { role: 'player', token: row.token, player: row.player };
+    : { role: 'player', token: row.token, inboxKey: row.inboxKey, player: row.player };
 }
 
 function toAction(row: ActionRow): Action {
