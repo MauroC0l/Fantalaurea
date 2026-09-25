@@ -3,6 +3,12 @@ import type { AdminSession } from '../../domain/player';
 import type { Result } from '../../domain/result';
 import type { LoadStatus } from '../game/game-state.svelte';
 
+// Hundreds of downloads at once make some of them fail: a few at a time, each retried.
+const PARALLEL_DOWNLOADS = 6;
+const ATTEMPTS = 3;
+// Windows refuses to extract paths longer than 260 characters: a 300-character caption can't go in the name.
+const TITLE_IN_NAME_MAX = 30;
+
 export interface Preparation {
   readonly done: number;
   readonly total: number;
@@ -46,13 +52,17 @@ export class AlbumState {
     this.preparation = { done: 0, total: photos.length };
     try {
       const names = uniqueFileNames(photos);
-      this.prepared = await Promise.all(
-        photos.map(async (photo, index) => {
-          const file = await this.fetch(photo, names[index]);
+      const files: NamedFile[] = new Array(photos.length);
+      let next = 0;
+      const worker = async () => {
+        while (next < photos.length) {
+          const index = next++;
+          files[index] = await withRetries(() => this.fetch(photos[index], names[index]));
           this.preparation = { done: (this.preparation?.done ?? 0) + 1, total: photos.length };
-          return file;
-        }),
-      );
+        }
+      };
+      await Promise.all(Array.from({ length: PARALLEL_DOWNLOADS }, worker));
+      this.prepared = files;
     } finally {
       this.preparation = null;
     }
@@ -76,7 +86,19 @@ export class AlbumState {
 
 function fileNameOf(photo: AlbumPhoto): string {
   const time = photo.takenAt.toTimeString().slice(0, 5).replace(':', '');
-  return `fantalaurea-${slug(photo.nickname)}-${slug(photo.title)}-${time}.jpg`;
+  const title = slug(photo.title).slice(0, TITLE_IN_NAME_MAX).replace(/-$/, '');
+  return [`fantalaurea-${slug(photo.nickname)}`, title, time].filter(Boolean).join('-') + '.jpg';
+}
+
+async function withRetries<T>(task: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await task();
+    } catch (error) {
+      if (attempt >= ATTEMPTS) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+    }
+  }
 }
 
 function uniqueFileNames(photos: readonly AlbumPhoto[]): string[] {
