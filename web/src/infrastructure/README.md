@@ -32,6 +32,9 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
     `SessionExpiredError`.
   - Ciò che tocca i file passa dalla Edge Function `photos` (ADR 0008).
   - I link firmati (12 ore) sono tenuti in una cache: ogni foto si chiede una volta sola.
+  - `feed` passa la sezione (`p_section`: `posts` o `deeds`, ADR 0021); una riga con
+    `item_kind` `challenge` diventa un `CompletionItem` con `timed: true`. `profile` converte
+    anche le sfide completate (`challenges`) in `ProfileChallenge`.
   - `features` / `setFeature`: gli interruttori della serata (RPC `features`,
     `admin_set_feature`); cambiarne uno annuncia `evening_settings`.
   - Utenti (ADR 0018): `players` (RPC `admin_players`), `setBlocked` (`admin_block_player`;
@@ -68,6 +71,9 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
     `ConversationState` tramite `onRead`.
 - `supabase/supabase-polls.ts`: `SupabasePolls(client, signals)` implementa `Polls` (ADR
   0019) con le RPC `polls`, `create_poll`, `vote_poll`, `close_poll`, `delete_poll`.
+  - `create_poll` riceve sempre `p_close_when_all_voted` falso (ADR 0021): l'opzione non esiste
+    più nel dominio, ma il parametro resta per non cambiare il contratto della RPC. Il campo
+    `closeWhenAllVoted` della risposta si legge e si ignora.
   - La risposta di `polls` diventa un `Poll` del dominio (date come `Date`, regole raccolte in
     `PollRules`, conteggi convertiti in numeri); i conteggi e i votanti nascosti restano `null`,
     come li manda il server.
@@ -77,7 +83,9 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
   - Il codice `28000` nelle letture diventa `SessionExpiredError`, come nel backend.
 - `supabase/supabase-challenges.ts`: `SupabaseChallenges(client, signals)` implementa
   `Challenges` (ADR 0020) con le RPC `challenges`, `create_challenge`, `update_challenge`,
-  `end_challenge`, `delete_challenge`, `complete_challenge`, `undo_challenge`.
+  `end_challenge`, `delete_challenge`, `complete_challenge`, `undo_challenge` e
+  `challenge_completers` (`completers`, ADR 0021: chi l'ha fatta, con posizione e punti presi o
+  no).
   - La risposta di `challenges` diventa una `Challenge` del dominio (date come `Date`, conteggi
     e posizione convertiti in numeri).
   - Dopo **ogni** scrittura riuscita annuncia `challenges`, anche per completare e annullare:

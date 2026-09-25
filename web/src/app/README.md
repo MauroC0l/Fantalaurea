@@ -37,9 +37,12 @@ di vita della sessione.
   arrivare su qualsiasi schermata. Per il giocatore `announceChallenge` mostra un avviso con
   vibrazione quando compare una sfida nuova (solo a chi ha l'app aperta: niente push);
   l'admin non riceve avvisi. Con la funzione accesa la scheda Azioni ha come badge
-  `challenges.todo`. `ChallengesSection` entra come snippet `top` in `ActionsScreen` (solo con
-  la funzione accesa; "Nuova" dipende da `game.permissions.challenges`) e in
-  `AdminActionsScreen` (sempre, con `canCreate`). "Invia
+  `challenges.todo`. Con la funzione accesa `ActionsScreen` riceve `timed` (ADR 0021): i numeri
+  di `ChallengesState` (`todo`, `mine.length`, il totale delle sfide) e due snippet costruiti
+  qui con `ChallengesSection`, `timedBoard` (vista `board`, "Nuova" dipende da
+  `game.permissions.challenges`) per il filtro "A tempo" e `timedDone` (vista `mine`) per
+  "Fatte". In `AdminActionsScreen` la `ChallengesSection` entra come snippet `top`, con
+  `canCreate`, solo se le sfide sono accese. "Invia
   messaggio" dal profilo apre (o crea) la conversazione e ci naviga. La conversazione riceve
   anche la lista delle chat (per l'inoltro) e gli appunti ("Copia testo"); la lista riceve la
   vibrazione (pressione lunga). Una sessione scaduta riporta alle regole con un avviso.

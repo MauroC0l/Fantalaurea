@@ -3,7 +3,7 @@
 Schema, regole di accesso e funzioni del backend (Postgres su Supabase). Motivazioni negli
 ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 0015 (chat),
 0016 (chat come WhatsApp), 0018 (utenti: blocco, permessi, limite di 100 foto), 0019
-(sondaggi) e 0020 (sfide a tempo).
+(sondaggi), 0020 (sfide a tempo) e 0021 (sfide ovunque, bacheca in due sezioni, durata libera).
 
 ## Contenuto
 - `migrations/`: lo schema, versionato. Ogni modifica è un file nuovo, mai la modifica di
@@ -33,6 +33,11 @@ ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 
 - `migrations/20260926000100_hidden_poll_votes.sql`: `vote_poll` rifiuta (`rejected`) un
   sondaggio creato da un bloccato. È già nascosto dall'elenco, ma senza questo controllo lo si
   potrebbe ancora votare conoscendone l'id.
+- `migrations/20260926010000_challenges_everywhere.sql` (ADR 0021): `challenge_completions`
+  riceve un `id` (per i "mi piace" in bacheca) e un trigger che ne cancella i like quando la riga
+  sparisce; sfide fino a 720 minuti (12 ore) in `create_challenge` e `update_challenge`; nuova
+  RPC `challenge_completers`; `profile` restituisce anche le sfide; `feed` diviso in due sezioni,
+  con le sfide completate tra le imprese; `toggle_like` accetta anche i completamenti delle sfide.
 - `functions/photos/`: la Edge Function, unico punto che tocca i file (foto e file della chat).
 - `config.toml`: configurazione dello stack locale.
 
@@ -45,7 +50,7 @@ ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 
 | `players` | giocatori: nickname unico, nome vero, bio, foto profilo, `inbox_key` (chiave segreta del canale della chat), `blocked_at` (bloccato dall'admin, `null` se no), `can_create_polls` / `can_create_challenges` (permessi, spenti di base) |
 | `player_completions` / `shared_completions` | azioni fatte (quelle "per tutti" una volta sola), con foto |
 | `posts` | post della bacheca: foto + didascalia |
-| `likes` | like su post e completamenti (`target_id`) |
+| `likes` | like su post, completamenti delle azioni e completamenti delle sfide (`target_id`); un trigger per tabella li cancella quando il bersaglio sparisce |
 | `sessions` | token di giocatori e admin |
 | `admin_credentials` | nickname e nome vero dell'admin |
 | `evening_settings` | la parola segreta della serata e gli interruttori `actions_enabled`, `feed_enabled`, `chat_enabled`, `leaderboard_enabled`, `polls_enabled`, `challenges_enabled` (accesi di base; sopravvivono a "Termina e ricomincia") |
@@ -53,11 +58,11 @@ ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 
 | `conversations` | una conversazione per coppia di giocatori (`player_a < player_b`), con l'ultima lettura di ciascuno (per i non letti) e, per lato a/b, `cleared_*_at` (i messaggi fino a lì non si vedono più: "Svuota"), `removed_*` (fuori dall'elenco finché non arriva un messaggio nuovo: "Cancella chat"), `marked_*` ("da leggere", vale un non letto). Due persone per conversazione: due colonne bastano, una tabella a parte sarebbe troppo |
 | `messages` | messaggi: testo (≤ 1000 caratteri), foto o vocale (60 s nell'app, il database accetta fino a 65 s di tolleranza); il tipo (`kind`) decide quali colonne sono piene (vincolo `messages_shape`). `reply_to` (messaggio citato, della stessa conversazione), `edited_at` (solo testi), `forwarded`, `deleted_at`: "elimina per tutti" è una cancellazione morbida, la riga resta senza testo né file, così le risposte che la citano non si rompono |
 | `message_hidden` | messaggi eliminati "per me" (messaggio, giocatore) |
-| `polls` | sondaggi: domanda, autore (`creator_id`, `null` = l'admin), regole (`anonymous`, `multiple`, `results` di tipo `poll_results`: `always` / `after-vote` / `after-close`, `vote_change`, `close_when_all_voted`), `closes_at` (scadenza a tempo), `closed_at` (chiuso a mano o all'ultimo voto). **Un sondaggio a tempo non viene mai segnato chiuso:** lo è quando `closes_at` è passato; chi legge la tabella a mano deve ragionare come `poll_is_closed` |
+| `polls` | sondaggi: domanda, autore (`creator_id`, `null` = l'admin), regole (`anonymous`, `multiple`, `results` di tipo `poll_results`: `always` / `after-vote` / `after-close`, `vote_change`, `close_when_all_voted`: dall'ADR 0021 l'app la manda sempre falsa, la colonna resta per non cambiare il contratto della RPC), `closes_at` (scadenza a tempo), `closed_at` (chiuso a mano o all'ultimo voto). **Un sondaggio a tempo non viene mai segnato chiuso:** lo è quando `closes_at` è passato; chi legge la tabella a mano deve ragionare come `poll_is_closed` |
 | `poll_options` | da 2 a 10 opzioni per sondaggio, ordinate da `position` |
 | `poll_votes` | una riga per opzione scelta (opzione, giocatore): un voto multiplo sono più righe |
 | `challenges` | sfide a tempo: titolo (2–40), descrizione (≤ 300), punti (1–100), `winners_limit` (1–50, `null` = tutti quelli che la completano in tempo), `starts_at`, `ends_at`, autore (`creator_id`, `null` = l'admin). Come un sondaggio a tempo, **una sfida finita non viene segnata**: lo è quando `ends_at` è passato |
-| `challenge_completions` | una riga per giocatore e sfida, con `completed_at`: l'ordine di arrivo decide chi sta tra i primi N. **I punti non si salvano:** si calcolano a ogni lettura (`challenge_points_of`), così cambiare limite o punti, annullare o eliminare non richiede ricalcoli |
+| `challenge_completions` | una riga per giocatore e sfida, con `id` (bersaglio dei "mi piace") e `completed_at`: l'ordine di arrivo decide chi sta tra i primi N. **I punti non si salvano:** si calcolano a ogni lettura (`challenge_points_of`), così cambiare limite o punti, annullare o eliminare non richiede ricalcoli |
 
 Le foto stanno nel bucket PRIVATO `photos` (`full/<id>.jpg`, `thumb/<id>.jpg`); i file della
 chat nel bucket PRIVATO `chat` (`photo/<id>.jpg`, `photo/<id>-thumb.jpg`, `voice/<id>.<ext>`).
@@ -68,7 +73,12 @@ Conversazioni, messaggi, voti e completamenti delle sfide spariscono con i gioca
 - RPC senza token: `check_secret_word`, `join_game`, `resume_session`.
 - RPC con token (ogni sessione): `catalog`, `participants`, `feed`, `profile`, `likers`,
   `features`, `permissions` (cosa può creare: l'admin tutto). `profile` restituisce
-  `photoCount` solo sul proprio profilo ("Ne usi N di 100"), `null` sugli altri. Giocatore: `completions_for`, `complete_action`, `toggle_like`, `update_bio`;
+  `photoCount` solo sul proprio profilo ("Ne usi N di 100"), `null` sugli altri, e le sfide
+  completate (`challenges`: `id`, `challengeId`, `title`, `points`, `completedAt`, `earned`, cioè
+  se è arrivato tra i primi N). `feed(token, before, limit, section)` (ADR 0021): `section` è
+  `posts` (i post) oppure `deeds` (le imprese: azioni completate e sfide completate, queste con
+  `item_kind` `challenge`, senza foto, tipo `bonus` e i punti della sfida); ogni sezione ha la
+  sua paginazione. Giocatore: `completions_for`, `complete_action`, `toggle_like`, `update_bio`;
   chat: `open_conversation`, `conversations`, `conversation` (restituisce anche `otherInbox`,
   per il "sta scrivendo" prima di qualsiasi messaggio), `messages` (con risposta citata,
   modificato, inoltrato, eliminato), `mark_read`, `mark_unread`, `clear_conversation`
@@ -93,7 +103,7 @@ Conversazioni, messaggi, voti e completamenti delle sfide spariscono con i gioca
   - `vote_poll` (solo giocatori: l'admin non vota) → `ok`, `unauthorized`, `disabled`, `closed`,
     `locked` (ha già votato e il cambio non è ammesso), `rejected`. Sostituisce i voti precedenti;
     con `close_when_all_voted`, se hanno votato tutti i giocatori non bloccati scrive
-    `closed_at`: chi entra dopo non riapre il sondaggio.
+    `closed_at`: chi entra dopo non riapre il sondaggio. Dall'ADR 0021 l'app non la attiva più.
   - `close_poll` e `delete_poll` (autore o admin) → `ok`, `unauthorized`, `rejected`.
   - I voti dei bloccati non contano e i sondaggi creati da loro non si vedono né si votano.
 - Sfide a tempo (ADR 0020), con il token di giocatori e admin:
@@ -101,11 +111,14 @@ Conversazioni, messaggi, voti e completamenti delle sfide spariscono con i gioca
     poi le finite. Ognuna porta `ended`, `creator`, `canManage`, `completions`, `mine`
     (`{at, rank}`: quando e in che posizione l'ho fatta, `null` se no) e `winners` (i primi
     `winnersLimit`, al massimo 50, bloccati esclusi). Le sfide dei bloccati non si vedono.
+  - `challenge_completers(token, sfida)` (ADR 0021): tutti quelli che l'hanno completata, in
+    ordine di arrivo, con `rank` ed `earned` (tra i primi `winners_limit`); i bloccati non
+    compaiono.
   - `create_challenge` → `{status, challengeId}`, `status` tra `ok`, `unauthorized`, `forbidden`
     (giocatore senza `can_create_challenges`), `rejected` (valori fuori dai vincoli, durata fuori
-    da 1–240 minuti), `disabled`.
+    da 1–720 minuti, cioè 12 ore), `disabled`.
   - `update_challenge` (autore o admin) → `ok`, `unauthorized`, `rejected`. `p_extend_minutes`
-    `null` lascia la scadenza; un numero la sposta ad **adesso** + minuti e riapre anche una
+    `null` lascia la scadenza; un numero (1–720) la sposta ad **adesso** + minuti e riapre anche una
     sfida finita. Abbassare il limite toglie i punti a chi resta fuori.
   - `end_challenge` (scadenza ad adesso) e `delete_challenge` (toglie i punti a chi l'aveva
     fatta), autore o admin → `ok`, `unauthorized`, `rejected`.

@@ -3,8 +3,10 @@
 Le schermate e il loro stato.
 
 ## Ingresso
-- `rules/RulesScreen`: regole brevi ("Le regole") e funzioni dell'app ("Anche nell'app", solo
-  quelle accese: prop `features`, sfide a tempo comprese; prima di entrare si mostrano tutte). Con `onjoin` è il
+- `rules/RulesScreen`: tre regole (Azioni, Prove, Per tutti; il testo l'ha scelto l'utente, ADR
+  0021) e, sotto "Possibilità", le funzioni dell'app come riquadri su due colonne: non sono
+  regole ma cose che si possono fare, e compaiono solo quelle accese (prop `features`, sfide a
+  tempo comprese; prima di entrare si mostrano tutte; il Profilo c'è sempre). Con `onjoin` è il
   benvenuto del primo accesso.
 - `join/SecretWordScreen`: parola della serata (e link "Sei l'admin?").
 - `join/JoinScreen`: nickname + nome vero (in modalità admin: "Entra come admin", con
@@ -19,46 +21,67 @@ Bacheca, Classifica, Chat e Sondaggi si possono spegnere dall'admin (ADR 0014): 
 e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 
 - `feed/FeedScreen` + `FeedCard`, `PostComposerDialog`, `LikersDialog`,
-  `feed-state.svelte.ts`: post e schede delle azioni, pagine infinite (una pagina più corta di
-  `FEED_PAGE_SIZE` vuol dire che non c'è altro), doppio tocco per il like, cuore immediato
-  (annullato se il server rifiuta), elenco di chi ha messo like, eliminazione dei propri post,
-  aggiornamento in tempo reale.
+  `feed-state.svelte.ts`: due sezioni scelte con un `SegmentedControl`, "Post" e "Imprese"
+  (azioni completate e sfide a tempo completate, ADR 0021). `FeedState.section` è quella
+  mostrata; `show(section)` svuota l'elenco e carica la pagina più recente dell'altra sezione,
+  che il server pagina a parte; una pagina arrivata dopo il cambio di sezione si scarta. Pagine
+  infinite (una pagina più corta di `FEED_PAGE_SIZE` vuol dire che non c'è altro), doppio tocco
+  per il like, cuore immediato (annullato se il server rifiuta), elenco di chi ha messo like,
+  eliminazione dei propri post, aggiornamento in tempo reale (anche quando cambia
+  `challenges`). `FeedCard` scrive "ha vinto la sfida a tempo" per un'impresa con `timed`.
 - `actions/ActionsScreen` (+ `ActionItem`, `CompletedItem`, `PhotoConfirmDialog`): punti,
   avanzamento, filtri per tipo e difficoltà, completamento con o senza foto (scattata ora o
   presa dalla galleria, con il pulsante unico `PhotoPickerButton`), annulla, elimina foto.
-  Accetta uno snippet `top`, mostrato sopra l'elenco: `App.svelte` ci mette le sfide a tempo,
-  così la schermata delle azioni non dipende dalle sfide.
+  I filtri (Tutte / Bonus / Malus / A tempo / Fatte) sono un `ChipGroup` con `scroll`, su una
+  riga che scorre di lato. Le sfide a tempo arrivano con la prop facoltativa `timed` (ADR 0021:
+  `{ todo, done, total, board, doneList }`, solo numeri e due snippet), così la schermata non sa
+  cosa sia una sfida:
+  - il filtro "A tempo" c'è solo con `timed`, porta il numero di sfide ancora da fare (`todo`) e
+    mostra `board`; se l'admin spegne le sfide mentre è scelto, si torna a "Tutte";
+  - il contatore "X su N completate" e "Fatte N" sommano azioni e sfide (`done`, `total`);
+  - "Fatte" comincia con `doneList` (le sfide fatte) e mostra lo stato vuoto solo se non si è
+    fatto niente di niente.
 - `challenges/` (ADR 0020), la stessa cartella per giocatori e admin:
   - `challenges-state.svelte.ts`: `ChallengesState`. **Vive per tutta la sessione**, non con la
     schermata: lo avvia `App.svelte` all'ingresso, perché l'avviso di una sfida nuova serve
     proprio quando non si è sulle Azioni. Derivati `running`, `finished` e `todo` (quante se ne
     possono ancora fare, con `openFor`: il badge della scheda Azioni). Un orologio (`now`)
     avanza ogni 5 s: i conti alla rovescia scendono e una sfida scaduta passa tra le finite
-    senza rileggere. Si rilegge quando cambiano `challenges` o `players`. `onNew` scatta solo
+    senza rileggere. `mine` sono le sfide completate da questo giocatore (per "Fatte");
+    `completers(challenge)` legge a richiesta chi l'ha fatta (`null` se la lettura fallisce;
+    sessione scaduta → `onSessionLost`). Si rilegge quando cambiano `challenges` o `players`. `onNew` scatta solo
     per sfide comparse **dopo la prima lettura** e in corso (quelle già aperte quando entri non
     sono "nuove"); una sfida creata da te non è nuova per te. Il getter `player` è `null` per
     l'admin, che crea e gestisce ma non partecipa (`complete` e `undo` rispondono
     `unauthorized`). `create` e `update` validano con `validateChallenge` prima di chiamare il
     server (`SaveChallengeError` = `ChallengeFailure` | errori della bozza); le operazioni su una
     sfida la segnano `busy`. Dopo ogni risposta rilegge; `unauthorized` → sessione persa.
-  - `ChallengesSection`: la sezione "Sfide a tempo" passata come `top`. Pulsante "Nuova" solo con
-    `canCreate`; sfide in corso, poi le finite (le prime 3, "Mostra tutte (N)"). Si nasconde se
-    non ci sono sfide e non se ne possono creare. "Gestisci" apre un `ActionSheet`: Modifica,
+  - `ChallengesSection`: due viste (`view`). `board` (predefinita) è il contenuto del filtro "A
+    tempo" delle Azioni e la sezione in cima alle azioni dell'admin: pulsante "Nuova" solo con
+    `canCreate`; sfide in corso, poi le finite (le prime 3, "Mostra tutte (N)"); si nasconde se
+    non ci sono sfide e non se ne possono creare. `mine` è l'inizio di "Fatte": solo le sfide
+    completate, seguite dal sottotitolo "Azioni"; nulla se non ce ne sono. Toccando "N l'hanno
+    fatta" su una scheda si apre un `Dialog` con tutti, in ordine di arrivo (`ScrollArea`):
+    posizione, foto profilo, nickname e ora, oppure "senza punti" in grigio per chi è arrivato
+    dopo i primi N. "Gestisci" apre un `ActionSheet`: Modifica,
     Termina adesso (solo se in corso), Elimina con conferma in un `Dialog`. Ogni
     `ChallengeFailure` ha il suo avviso.
   - `ChallengeCard`: badge con il tempo che resta (`formatTimeLeft`) o "Finita", autore, punti,
     a chi vanno i punti e i posti rimasti, `AvatarStack` di chi l'ha fatta; "Fatta!" e, mentre è
     in corso, "Annulla". Dopo: "Fatta! Sei N°", oppure "fuori dai primi: niente punti" se il
-    limite è stato abbassato (`earnedPoints`).
+    limite è stato abbassato (`earnedPoints`). `oncompleters`: la riga "N l'hanno fatta" è un
+    pulsante che apre l'elenco completo.
   - `ChallengeEditorDialog`: titolo, descrizione, `ChipGroup` per punti (5–50), vincitori
-    (`CHALLENGE_WINNERS`) e durata (`CHALLENGE_DURATIONS`). In modifica la durata offre anche
-    "Non cambiare" (predefinito): scegliere una durata fa ripartire il tempo da adesso.
+    (`CHALLENGE_WINNERS`) e durata (`CHALLENGE_DURATIONS` più "Personalizzata", che apre un
+    `DurationPicker` fino a `CHALLENGE_DURATION_MAX`, 12 ore; ADR 0021). In modifica la durata
+    offre anche "Non cambiare" (predefinito): scegliere una durata fa ripartire il tempo da adesso.
     Esporta dal `<script module>` il tipo `ChallengeForm` (`minutes` `null` = non cambiare),
     che `ChallengesSection` trasforma in `ChallengeDraft` o `ChallengeEdit`.
 - `participants/ParticipantsScreen`: classifica per punti; ogni riga apre il profilo.
 - `profile/ProfileScreen` + `BioEditorDialog`, `profile-state.svelte.ts`: foto profilo,
   nickname, nome vero, punti, posizione (solo con `showRank`, cioè classifica accesa), bio,
-  foto, azioni completate (in una `ScrollArea`: sotto c'è altro). Toccando la foto profilo
+  foto, azioni completate (in una `ScrollArea`: sotto c'è altro), che con `deedsOf` comprendono
+  anche le sfide a tempo, segnate "A tempo" (ADR 0021). Toccando la foto profilo
   si ingrandisce (`Lightbox`). Sul proprio profilo: "Ne usi N di 100" (da `photoCount`, in
   rosso al limite), cambia/togli foto, modifica bio, regole, esci.
   Sul profilo di un altro, con la chat accesa, "Invia messaggio" (`onmessage`).
@@ -94,7 +117,9 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
     modifica. Tenendo premuto un messaggio si apre il menu (`actionsFor`: rispondi, copia testo
     con `Clipboard`, modifica, inoltra, elimina per me / per tutti); trascinandolo a destra si
     risponde; toccando una citazione si salta al messaggio citato, se è già caricato, e lo si
-    illumina. Riceve `chatList` per l'elenco delle chat dell'inoltro. Nasconde la tab bar.
+    illumina. Riceve `chatList` per l'elenco delle chat dell'inoltro. Nasconde la tab bar. La
+    griglia del composer dichiara `minmax(0, 1fr)` (vedi le trappole di `ui/`): senza, un
+    messaggio citato lungo allargava la colonna e la X del `ComposerBanner` finiva fuori schermo.
 - `polls/` (ADR 0019), la stessa cartella per giocatori e admin:
   - `polls-state.svelte.ts`: `PollsState`, con una sessione di giocatore o di admin. `voter` è
     `null` per l'admin, che crea e gestisce ma non vota. Si rilegge quando cambiano `polls` o
@@ -117,9 +142,10 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
     anonimi); se il server li nasconde, una riga spiega quando si vedranno. Un badge mostra il
     tempo che resta.
   - `PollEditorDialog`: domanda, da 2 a 10 opzioni (aggiungi / togli), `Switch` per anonimo, più
-    scelte, cambio voto e chiusura "quando hanno votato tutti", `ChipGroup` per visibilità dei
-    risultati e durata (`POLL_DURATIONS`); gli errori della bozza diventano messaggi. Si
-    ripulisce a ogni apertura.
+    scelte e cambio voto, `ChipGroup` per visibilità dei risultati e durata (`POLL_DURATIONS` più
+    "Personalizzata", che apre un `DurationPicker` fino a `POLL_DURATION_MAX`, 24 ore); gli errori
+    della bozza diventano messaggi. Si ripulisce a ogni apertura. La chiusura "quando hanno
+    votato tutti" non c'è più (ADR 0021): per l'utente "automatica" voleva dire "a tempo".
 - `game/game-state.svelte.ts`: catalogo, completamenti, classifica, funzioni accese
   (`features`, riletto quando cambia `evening_settings`) e `permissions` (cosa l'admin gli
   lascia creare, ADR 0018; riletto con il resto, anche quando cambia `players`);
@@ -133,8 +159,8 @@ La scheda Sondaggi è la stessa `polls/PollsScreen` dei giocatori, con `canCreat
 e senza il pulsante "Vota".
 
 - `admin/AdminActionsScreen` + `ActionEditorDialog`: lista, crea, modifica, elimina azioni.
-  Come `ActionsScreen` accetta uno snippet `top`: in cima c'è la stessa `ChallengesSection` dei
-  giocatori, con cui l'admin crea e gestisce le sfide.
+  Accetta uno snippet `top`: in cima c'è la stessa `ChallengesSection` dei giocatori (vista
+  `board`), con cui l'admin crea e gestisce le sfide, solo quando le sfide sono accese.
 - `admin/UsersScreen` + `users-state.svelte.ts` (ADR 0018):
   - `UsersState`: tutti i giocatori (`EveningAdmin.players`), bloccati compresi. Si rilegge
     quando cambiano `players`, `posts` o `player_completions` (chi entra, foto che arrivano o
@@ -146,10 +172,20 @@ e senza il pulsante "Vota".
     ora di ingresso, interruttori dei permessi (spenti per un bloccato) e "Blocca" (con
     conferma) / "Sblocca". Riceve la `PhotoLinksCache` per le foto profilo.
 - `admin/AlbumScreen` + `album-state.svelte.ts`: tutte le foto (azioni e post), condividi,
-  ZIP, elimina (moderazione). Export a parti da 100 (EXPORT_PART_SIZE): una sola parte in memoria alla
-  volta, perché 500 foto vere (circa 1,5 MB l'una) farebbero chiudere il browser del telefono; nomi dei file
-  brevi e unici su tutto l'album (Windows non estrae percorsi oltre 260 caratteri), download a gruppi di 6
-  con nuovi tentativi. Schermata `wide`: su computer la griglia riempie la finestra
+  ZIP, elimina (moderazione). Export a parti da 100 (`EXPORT_PART_SIZE`): una sola parte in
+  memoria alla volta, perché 500 foto vere (circa 1,5 MB l'una) farebbero chiudere il browser
+  del telefono; nomi dei file brevi e unici su tutto l'album (Windows non estrae percorsi oltre
+  260 caratteri), foto scaricate a gruppi di 6 con nuovi tentativi. Download guidato (ADR 0021):
+  - sulla schermata c'è un solo pulsante, "Scarica tutte (N)", che apre un `Dialog`: spiega
+    quanti ZIP verranno scaricati e perché (tutte insieme farebbero chiudere la pagina) e
+    ricorda di accettare il permesso del browser per i download multipli;
+  - "Scarica N ZIP" chiama `AlbumState.downloadAll`: prepara una parte, la scarica come ZIP, la
+    toglie dalla memoria e aspetta 0,8 s prima della successiva. Il pannello mostra "ZIP X di N"
+    con l'avanzamento e non si chiude finché lavora; se qualcosa fallisce torna alla
+    spiegazione con un avviso;
+  - "Salva nel rullino (iPhone)" mostra i gruppi da 100, ciascuno con "Prepara il gruppo" e poi
+    "Condividi N foto": la condivisione vuole un tocco dell'utente per volta, quindi non si può
+    automatizzare. Schermata `wide`: su computer la griglia riempie la finestra
   (colonne automatiche da 700 px). Il visore mostra tipo, titolo dell'azione o didascalia del
   post (come testo da leggere, non come titolo), autore, data e ora e scorre tra le foto; dopo
   un'eliminazione passa alla foto successiva. Le foto della chat non ci sono.

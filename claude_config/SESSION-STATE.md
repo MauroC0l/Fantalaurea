@@ -33,9 +33,10 @@ segreta. Si usa quasi solo da telefono. Prima festa: **2026-10-02**.
 - Azione "foto ai genitali" eliminata (decisione dell'utente, rischio art. 612-ter).
 
 ## Stato attuale (verificato 2026-09-25 notte)
-- Tutto in produzione e verificato sul sito vero (commit d57c1d3): richieste del 2026-09-25 sera
-  completate. Nella festa ci sono anche 4 sondaggi e 3 sfide dimostrativi; `Il Demo` può creare
-  sondaggi e sfide.
+- Tutto in produzione e verificato sul sito vero (commit 5d70606, 2026-09-25 notte), compreso il
+  giro successivo (ADR 0021): regole riscritte dall'utente, filtro "A tempo" nelle Azioni, sfide in
+  Fatte / profilo / bacheca, bacheca Post e Imprese, durata personalizzata, download guidato.
+- Nella festa ci sono 4 sondaggi e 3 sfide dimostrativi; `Il Demo` può creare sondaggi e sfide.
 - Test: 45 unitari, 34 d'integrazione (`npm run test:db`), tutti verdi.
 - **La festa di produzione è piena di dati finti** (richiesta dell'utente):
   - 126 giocatori, 1316 completamenti (458 con foto), circa 90 post, 2775 like, circa 75 chat;
@@ -50,9 +51,9 @@ segreta. Si usa quasi solo da telefono. Prima festa: **2026-10-02**.
   - dominio comprato (circa 10 €/anno) su GitHub Pages;
   - sottodominio gratis su Cloudflare Pages / Netlify, che hanno anche le riscritture e
     quindi eliminerebbero il codice 404.
-- **Chiusura "automatica" dei sondaggi:** implementata come "si chiude quando hanno votato
-  tutti"; va confermato.
 - **Sfide con foto di prova?** Oggi no: aggiungerle tocca album, limite, link e reset.
+- Nella lista di chi ha fatto una sfida, i bloccati occupano ancora il loro posto (si vedono buchi
+  tipo 1°, 3°): va deciso se ricalcolare le posizioni escludendoli.
 
 ## Prossimi passi
 - L'utente prova tutto coi dati finti, poi azzera la serata e toglie le azioni demo.

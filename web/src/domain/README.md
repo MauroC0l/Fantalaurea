@@ -9,11 +9,14 @@ Tipi e regole del gioco, in funzioni pure: niente rete, niente browser, niente S
   `acceptsPhoto`, `pointsMagnitude`.
 - `challenge.ts` (ADR 0020):
   - costanti: `CHALLENGE_TITLE_MAX` (40), `CHALLENGE_DESCRIPTION_MAX` (300),
-    `CHALLENGE_POINTS_MAX` (100), `CHALLENGE_DURATIONS` (5, 10, 15, 30, 60 minuti: durate fisse,
-    come per i sondaggi), `CHALLENGE_WINNERS` (tutti, 1, 3, 5, 10; `null` = tutti quelli che la
-    completano in tempo);
+    `CHALLENGE_POINTS_MAX` (100), `CHALLENGE_DURATIONS` (5, 10, 15, 30, 60 minuti: le durate
+    pronte, come per i sondaggi), `CHALLENGE_DURATION_MAX` (720 minuti, 12 ore: il massimo di una
+    durata "Personalizzata", ADR 0021; il server controlla lo stesso), `CHALLENGE_WINNERS` (tutti,
+    1, 3, 5, 10; `null` = tutti quelli che la completano in tempo);
   - tipi: `Challenge` (autore `null` = l'admin, `completions`, `mine` = quando e in che
-    posizione l'ho fatta, `winners` in ordine di arrivo), `ChallengeWinner`, `ChallengeDraft`
+    posizione l'ho fatta, `winners` in ordine di arrivo), `ChallengeWinner`, `ChallengeCompleter`
+    (ADR 0021: uno di tutti quelli che l'hanno fatta, con posizione `rank` ed `earned` = arrivato
+    tra i primi N), `ChallengeDraft`
     (con la durata), `ChallengeEdit` (senza durata: `extendMinutes` `null` lascia la scadenza,
     un numero la fa ripartire da adesso), `ChallengeDraftError`;
   - regole: `validateChallenge` (vale per bozza e modifica: restituisce titolo e descrizione
@@ -47,14 +50,19 @@ Tipi e regole del gioco, in funzioni pure: niente rete, niente browser, niente S
   `takeover` del profilo esistente o `distinct`), `AccessLogEntry`.
 - `features.ts` (ADR 0014): `FeatureName` (`actions` | `chat` | `feed` | `leaderboard` | `polls` | `challenges`), `Features`,
   `ALL_FEATURES_ON` (il valore prima della prima lettura).
-- `feed.ts`: `FeedItem` = `PostItem` | `CompletionItem`, `LikeSummary`, `Liker`, `mergeFeed`
-  (più recenti prima, la copia più fresca vince), `withLike`, `isValidCaption` (300 caratteri).
+- `feed.ts`: `FeedSection` (`posts` | `deeds`: le due sezioni della bacheca, ADR 0021),
+  `FeedItem` = `PostItem` | `CompletionItem` (un'azione completata o, con `timed`, una sfida a
+  tempo completata: senza foto, tipo bonus), `LikeSummary`, `Liker`, `mergeFeed` (più recenti
+  prima, la copia più fresca vince), `withLike`, `isValidCaption` (300 caratteri).
 - `poll.ts` (ADR 0019):
   - costanti: `POLL_QUESTION_MAX` (200), `POLL_OPTION_MAX` (100), `POLL_OPTIONS_MIN` /
     `POLL_OPTIONS_MAX` (2–10), `POLL_DURATIONS` (le durate offerte: nessuna, 5, 15, 30 minuti, 1 e
-    2 ore; durate fisse e non data e ora, a una festa serve "tra 15 minuti");
+    2 ore; durate e non data e ora, a una festa serve "tra 15 minuti"), `POLL_DURATION_MAX`
+    (1440 minuti, 24 ore: il massimo di una durata "Personalizzata", ADR 0021; il server
+    controlla lo stesso);
   - tipi: `ResultsVisibility` (`always` | `after-vote` | `after-close`), `PollRules` (anonimo,
-    più scelte, risultati, cambio voto, chiusura quando hanno votato tutti), `PollDraft` +
+    più scelte, risultati, cambio voto; la chiusura "quando hanno votato tutti" non esiste più,
+    ADR 0021), `PollDraft` +
     `PollDraftError`, `PollOption` (`votes` e `voters` sono `null` finché il server li nasconde:
     il dominio non può inventarli), `PollVoter`, `Poll` (autore `null` = l'admin, `closed` com'era
     alla lettura, `myVotes`, `canManage`, `resultsVisible`);
@@ -65,10 +73,12 @@ Tipi e regole del gioco, in funzioni pure: niente rete, niente browser, niente S
     lettura), `hasVoted`, `canVote` (aperto e non ancora votato, o cambio ammesso), `shareOf`
     (percentuale 0–100 sul totale dei voti: con più scelte un votante conta su più opzioni),
     `leadingOptions` (le opzioni in testa, nessuna se non ha votato nessuno).
-- `profile.ts`: `Profile` con completamenti, post e `photoCount` (le foto usate, solo sul
-  proprio profilo, altrimenti `null`), `PHOTO_LIMIT` = 100 (foto per giocatore tra azioni, post
-  e chat, esclusa la foto profilo; ADR 0018), `photosOf` (tutte le foto di un giocatore),
-  `isValidBio` (500 caratteri).
+- `profile.ts`: `Profile` con completamenti, sfide completate (`ProfileChallenge`, con
+  `earned`: `false` se è arrivato dopo i primi N; ADR 0021), post e `photoCount` (le foto usate,
+  solo sul proprio profilo, altrimenti `null`), `PHOTO_LIMIT` = 100 (foto per giocatore tra
+  azioni, post e chat, esclusa la foto profilo; ADR 0018), `photosOf` (tutte le foto di un
+  giocatore), `Deed` + `deedsOf` (azioni e sfide insieme, più recenti prima; una sfida vale come
+  bonus, con 0 punti per chi è arrivato dopo i primi N), `isValidBio` (500 caratteri).
 - `player.ts`: `Player`, `Participant` (con foto profilo, azioni, punti), `Session` =
   `PlayerSession` (con `inboxKey`, la chiave segreta del canale della chat) | `AdminSession`,
   `IDENTITY_LIMITS` (nickname 2–20, nome vero 2–40), `validateIdentity`, `sameName`, `rankParticipants` (punti, poi azioni, poi nickname).
