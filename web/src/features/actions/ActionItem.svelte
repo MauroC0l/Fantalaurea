@@ -5,7 +5,7 @@
   import DifficultyMeter from '../../ui/components/DifficultyMeter.svelte';
   import Disclosure from '../../ui/components/Disclosure.svelte';
   import Icon from '../../ui/components/Icon.svelte';
-  import PhotoSourceButtons from '../../ui/components/PhotoSourceButtons.svelte';
+  import PhotoPickerButton from '../../ui/components/PhotoPickerButton.svelte';
   import PointsPill from '../../ui/components/PointsPill.svelte';
   import { DIFFICULTY_LABELS, DIFFICULTY_LEVELS, KIND_LABELS } from '../labels';
 
@@ -55,15 +55,19 @@
 
   <div class="buttons">
     {#if action.photoPolicy === 'required'}
-      <p class="note">Serve una foto per completarla: scattala ora o sceglila dalla galleria.</p>
-      <PhotoSourceButtons loading={busy} onpick={onpickphoto} />
+      <p class="note">Serve una foto per completarla.</p>
+      <PhotoPickerButton block loading={busy} onpick={onpickphoto}>
+        <Icon name="camera" size={20} /> Carica foto
+      </PhotoPickerButton>
     {:else}
       <Button block loading={busy} onclick={oncomplete}>
         <Icon name="check" size={20} /> Fatta!
       </Button>
       {#if action.photoPolicy === 'optional'}
         <p class="note">Oppure completala con una foto:</p>
-        <PhotoSourceButtons variant="ghost" size="small" disabled={busy} onpick={onpickphoto} />
+        <PhotoPickerButton block variant="ghost" size="small" disabled={busy} onpick={onpickphoto}>
+          <Icon name="camera" size={16} /> Carica foto
+        </PhotoPickerButton>
       {/if}
     {/if}
   </div>

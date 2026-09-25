@@ -3,6 +3,7 @@
   import type { Result } from '../../domain/result';
   import Button from '../../ui/components/Button.svelte';
   import Dialog from '../../ui/components/Dialog.svelte';
+  import ScrollArea from '../../ui/components/ScrollArea.svelte';
   import Icon from '../../ui/components/Icon.svelte';
   import IconButton from '../../ui/components/IconButton.svelte';
   import Screen from '../../ui/components/Screen.svelte';
@@ -49,6 +50,7 @@
   const close = () => (dialog = { kind: 'none' });
 
   const FEATURES: readonly { name: FeatureName; label: string; description: string }[] = [
+    { name: 'actions', label: 'Azioni', description: 'La lista delle azioni da completare' },
     { name: 'feed', label: 'Bacheca', description: 'Post, foto delle azioni e like visibili a tutti' },
     { name: 'chat', label: 'Chat', description: 'Messaggi privati, foto e vocali tra giocatori' },
     { name: 'leaderboard', label: 'Classifica', description: 'Chi è in testa. I punti restano comunque' },
@@ -163,6 +165,7 @@
   <section class="section">
     <h2>Accessi admin <span class="count">{admin.accessLog.length}</span></h2>
     <p class="muted">Ogni ingresso con le credenziali admin. Se ne vedi uno che non è tuo, cambia la parola.</p>
+    <ScrollArea maxHeight="min(360px, 45dvh)" label="Accessi admin">
     <ul class="log">
       {#each admin.accessLog as entry, index (index)}
         <li>
@@ -175,6 +178,7 @@
         <li class="muted">Nessun accesso registrato.</li>
       {/each}
     </ul>
+    </ScrollArea>
   </section>
 
   <section class="section">

@@ -9,11 +9,21 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
   delle animazioni, z-index, aree sicure dei telefoni. Solo tema scuro. Larghezze:
   `--content-max` (560 px, la colonna da telefono) e `--content-wide` (1120 px, griglie di foto
   su computer). `--color-surface-bar` è la superficie quasi opaca delle barre con testo
-  (`TopBar`, `TabBar`): il contenuto colorato che scorre sotto non deve trasparire.
+  (`TopBar`, `TabBar`): il contenuto colorato che scorre sotto non deve trasparire. I fumetti
+  della chat hanno i loro token: `--gradient-bubble-mine` (i colori della festa, ma abbastanza
+  scuri per il testo bianco `--color-on-bubble-mine`), `--color-bubble-in` e
+  `--color-bubble-in-border` (quelli ricevuti, opachi).
 - `theme/base.css`: reset e stili globali; rispetta "riduci movimento".
 - `theme/motion.ts`: durate per le transizioni Svelte (duplicano `--duration-*`).
-- `icons.ts`: tracciati SVG delle icone (per la chat: `play`, `pause`, `mic`, `send`, `chat`).
+- `icons.ts`: tracciati SVG delle icone (per la chat: `play`, `pause`, `mic`, `send`, `chat`,
+  `reply`, `forward`, `unread`, `eraser`, `more`).
   `tone.ts`: `Tone` (`bonus` | `malus` | `common`).
+
+## Azioni (`actions/`)
+- `longpress.ts`: azione Svelte `use:longpress={handler}`. Tenere premuto 450 ms, o il tasto
+  destro su computer, chiama `handler` (il menu "come WhatsApp", ADR 0016). Muovere il dito di
+  oltre 10 px annulla: stava scorrendo. Il clic che chiude una pressione lunga viene
+  inghiottito, altrimenti scatterebbe anche ciò che sta sotto il dito (un link, una foto).
 
 ## Componenti
 | Componente | Uso |
@@ -23,20 +33,25 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
 | `TopBar` | barra fissa in alto con freccia "Indietro" e contenuto libero (la usa la conversazione) |
 | `Button` | `primary` / `ghost` / `danger`, taglia `regular` / `small`, stato `loading` |
 | `IconButton` | pulsante tondo con sola icona; `danger`, `primary` (gradiente: l'azione principale di una barra, es. invia); aspetto spento se `disabled` |
-| `PhotoPickerButton` | pulsante che apre fotocamera / galleria (input nativo nascosto); con `camera` apre subito la fotocamera posteriore (`capture="environment"`) |
-| `PhotoSourceButtons` | due `PhotoPickerButton` affiancati: "Scatta ora" (fotocamera) e "Galleria"; etichette personalizzabili |
+| `PhotoPickerButton` | l'unico pulsante "Carica foto" (input nativi nascosti). Sul telefono apre un `ActionSheet` "Scatta una foto / Scegli dalla galleria"; con un puntatore preciso (computer) apre subito la galleria. La fotocamera ha un input suo con `capture="environment"`: alcuni Android (es. Xiaomi) altrimenti propongono solo la galleria. `label` serve quando il pulsante mostra solo un'icona |
 | `TextField` | etichetta flottante, suggerimento, errore; `multiline`, `inputmode`, `counter` (caratteri rimasti) |
 | `SegmentedControl` | scelta tra poche opzioni con indicatore che scorre |
 | `Switch` | interruttore con etichetta e descrizione |
 | `Disclosure` | tendina: riepilogo sempre visibile, contenuto che si apre animato |
-| `Dialog` | pannello dal basso con sfondo sfocato; Esc o tocco fuori per chiudere |
+| `Dialog` | pannello dal basso con sfondo sfocato; Esc o tocco fuori per chiudere. Conta i pannelli aperti: con un pannello sopra un altro (la scelta della foto dentro una conferma) la pagina si sblocca solo quando si chiude l'ultimo |
+| `ActionSheet` | menu di scelte costruito su `Dialog`: voci `{ icon, label, danger, onselect }`, contenuto facoltativo sopra le voci. `onselect` parte in modo sincrono dentro il tocco, perché fotocamera e galleria si aprono solo da un gesto dell'utente |
+| `ScrollArea` | elenco che scorre dentro un pannello o con altro contenuto sotto (`maxHeight`): barra nativa nascosta, cursore disegnato da noi (trascinabile su computer), bordi sfumati quando c'è altro sopra o sotto |
+| `SelectableRow` | riga selezionabile con spunta tonda disegnata da noi (`role="checkbox"`) |
 | `Lightbox` | foto a schermo intero con didascalia e azioni; con `onprevious` / `onnext` frecce, scorrimento col dito, tasti freccia e `position` ("3 di 12"). Sul telefono una didascalia lunga scorre (al massimo 45 % dell'altezza) invece di schiacciare la foto; da 900 px diventa foto + pannello laterale di 380 px |
 | `Thumbnail` | miniatura quadrata con caricamento animato |
 | `PhotoFrame` | foto della bacheca (4:5): un tocco apre, doppio tocco mette like con cuore animato |
 | `LikeButton` | cuore + "Piace a N persone" (apre l'elenco) |
-| `MessageBubble` | fumetto di un messaggio con l'ora (i miei a destra, colorati); `media` per le foto a filo; `onselect` al tocco |
-| `MessageInput` | campo di testo che cresce fino a qualche riga; Invio invia solo con un puntatore preciso (computer), sul telefono va a capo |
-| `VoicePlayer` | riproduttore di vocali disegnato da noi sopra un `Audio` nascosto: play/pausa, avanzamento, durata |
+| `MessageBubble` | fumetto di un messaggio (i miei a destra, colorati), con l'ora in basso a destra come su WhatsApp. È un `div`, non un pulsante: un pulsante disattivato bloccava il play dei vocali che conteneva. `groupStart` / `groupEnd` (i messaggi di fila si stringono), `media` (foto a filo, ora sopra la foto), `voice`, `deleted`, `edited`, `forwarded`, `quote` (il messaggio a cui risponde, toccabile), `highlighted`; `onmenu` alla pressione lunga, `onreply` trascinandolo a destra |
+| `ComposerBanner` | striscia sopra il campo di testo: a cosa risponde o cosa corregge il prossimo messaggio, con "Annulla" |
+| `DayDivider` | separatore tra i giorni ("Oggi", "Ieri", "ven 25 set") |
+| `TypingIndicator` | tre puntini in un fumetto: "sta scrivendo" |
+| `MessageInput` | campo di testo che cresce fino a qualche riga; Invio invia solo con un puntatore preciso (computer), sul telefono va a capo. `oninput` a ogni tasto, `focus()` esportato |
+| `VoicePlayer` | riproduttore di vocali disegnato da noi sopra un `Audio` nascosto: play/pausa, durata e un'onda finta ma stabile (dipende da `seed`, es. l'id del messaggio: l'onda vera richiederebbe di decodificare l'audio); un tocco sull'onda salta a quel punto |
 | `RecordingIndicator` | registrazione in corso: punto pulsante, tempo trascorso, secondi rimasti vicino al limite |
 | `ProgressBar` | barra di avanzamento a gradiente |
 | `DifficultyMeter` | difficoltà come 1-3 fiamme colorate |

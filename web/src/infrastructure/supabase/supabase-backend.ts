@@ -238,7 +238,8 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   async complete(session: PlayerSession, actionId: string): Promise<Result<void, CompleteFailure>> {
     const { data, error } = await this.#client.rpc('complete_action', { p_token: session.token, p_action_id: actionId });
     if (error) return err('unavailable');
-    if (data !== 'ok') return err(data as CompleteFailure);
+    // "disabled" only if the admin switched actions off a moment ago: the tab is about to vanish.
+    if (data !== 'ok') return err(data === 'disabled' ? 'rejected' : (data as CompleteFailure));
     this.#announce(COMPLETIONS);
     return ok(undefined);
   }

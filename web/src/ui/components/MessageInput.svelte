@@ -4,9 +4,15 @@
     placeholder: string;
     maxlength: number;
     onsubmit: () => void;
+    /** Every keystroke, e.g. to say "sta scrivendo…". */
+    oninput?: () => void;
   }
 
-  let { value = $bindable(''), placeholder, maxlength, onsubmit }: Props = $props();
+  let { value = $bindable(''), placeholder, maxlength, onsubmit, oninput }: Props = $props();
+
+  export function focus() {
+    field?.focus();
+  }
 
   let field = $state<HTMLTextAreaElement>();
 
@@ -36,6 +42,7 @@
   {maxlength}
   aria-label={placeholder}
   onkeydown={keydown}
+  {oninput}
 ></textarea>
 
 <style>

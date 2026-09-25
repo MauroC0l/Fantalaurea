@@ -29,6 +29,18 @@ export function formatDateTime(date: Date): string {
   return date.toLocaleString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+/** "Oggi", "Ieri", otherwise "ven 25 set". */
+export function formatDay(date: Date, now: Date = new Date()): string {
+  const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);
+  if (days === 0) return 'Oggi';
+  if (days === 1) return 'Ieri';
+  return date.toLocaleDateString('it-IT', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+export function startOfDay(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
 /** "adesso", "5 min fa", "2 h fa", otherwise the time of day. */
 export function formatRelative(date: Date, now: Date = new Date()): string {
   const minutes = Math.floor((now.getTime() - date.getTime()) / 60_000);

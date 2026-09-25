@@ -19,9 +19,11 @@ di vita della sessione.
   bacheca, lista delle chat, profilo, conversazione aperta e la cache dei link foto, mostra la
   tab bar giusta per il ruolo (con il badge dei non letti sulla Chat, nascosta dentro una
   conversazione) e la conferma di uscita. Nasconde le schede delle funzioni spente
-  dall'admin e, se la rotta corrente è una di quelle, porta alle Azioni (ADR 0014). "Invia
-  messaggio" dal profilo apre (o crea) la conversazione e ci naviga. Una sessione scaduta
-  riporta alle regole con un avviso.
+  dall'admin e, se la rotta corrente è una di quelle, porta alla prima scheda ancora accesa
+  (il Profilo c'è sempre; `SCREEN_FEATURES` dice da quale funzione dipende ogni schermata, ADR 0014). "Invia
+  messaggio" dal profilo apre (o crea) la conversazione e ci naviga. La conversazione riceve
+  anche la lista delle chat (per l'inoltro) e gli appunti ("Copia testo"); la lista riceve la
+  vibrazione (pressione lunga). Una sessione scaduta riporta alle regole con un avviso.
 
 ## Relazioni
 - Dipende da: tutti gli altri moduli.

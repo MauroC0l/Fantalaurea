@@ -14,6 +14,7 @@
   import PhotoPickerButton from '../../ui/components/PhotoPickerButton.svelte';
   import PointsPill from '../../ui/components/PointsPill.svelte';
   import Screen from '../../ui/components/Screen.svelte';
+  import ScrollArea from '../../ui/components/ScrollArea.svelte';
   import Surface from '../../ui/components/Surface.svelte';
   import Thumbnail from '../../ui/components/Thumbnail.svelte';
   import { toasts } from '../../ui/components/toasts.svelte';
@@ -52,6 +53,7 @@
   let editingBio = $state<string | null>(null);
   let busy = $state(false);
   let viewing = $state<ProfilePhoto | null>(null);
+  let zoomingAvatar = $state(false);
 
   const data = $derived(profile.profile);
   const stats = $derived(game.participants.find((p) => p.player.id === profile.playerId));
@@ -114,7 +116,13 @@
     </EmptyState>
   {:else}
     <section class="hero" in:fly={{ y: 20, duration: duration('slow'), easing }}>
-      <Avatar name={data.nickname} src={links.get(data.avatarId)?.thumbnailUrl} size="lg" />
+      {#if data.avatarId}
+        <button class="avatar-zoom" onclick={() => (zoomingAvatar = true)} aria-label="Ingrandisci la foto profilo">
+          <Avatar name={data.nickname} src={links.get(data.avatarId)?.thumbnailUrl} size="lg" />
+        </button>
+      {:else}
+        <Avatar name={data.nickname} size="lg" />
+      {/if}
       <h1>{data.nickname}</h1>
       <p class="real-name">{data.realName}</p>
       {#if profile.isMine}
@@ -175,6 +183,7 @@
       {#if data.completions.length === 0}
         <p class="muted">Ancora nessuna azione.</p>
       {:else}
+        <ScrollArea maxHeight="min(420px, 55dvh)" label="Azioni completate">
         <ul class="actions">
           {#each data.completions as completion (completion.id)}
             <li>
@@ -190,6 +199,7 @@
             </li>
           {/each}
         </ul>
+        </ScrollArea>
       {/if}
     </section>
 
@@ -201,6 +211,12 @@
 
 <BioEditorDialog initial={editingBio} saving={busy} onsave={saveBio} onclose={() => (editingBio = null)} />
 
+<Lightbox
+  src={zoomingAvatar && data?.avatarId ? (links.get(data.avatarId)?.fullUrl ?? null) : null}
+  alt="Foto profilo di {data?.nickname ?? ''}"
+  onclose={() => (zoomingAvatar = false)}
+/>
+
 <Lightbox src={viewing ? (links.get(viewing.photoId)?.fullUrl ?? null) : null} alt={viewing?.caption ?? ''} onclose={() => (viewing = null)}>
   {#snippet caption()}
     {#if viewing}<p>{viewing.caption} · {formatTime(viewing.takenAt)}</p>{/if}
@@ -210,6 +226,15 @@
 <style>
   .back {
     justify-self: start;
+  }
+
+  .avatar-zoom {
+    border-radius: 50%;
+    transition: transform var(--duration-fast) var(--ease-spring);
+  }
+
+  .avatar-zoom:active {
+    transform: scale(0.94);
   }
 
   .hero {

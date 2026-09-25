@@ -43,7 +43,7 @@ export interface IdentityError {
 }
 
 export const IDENTITY_LIMITS: Readonly<Record<IdentityField, { min: number; max: number }>> = {
-  nickname: { min: 2, max: 24 },
+  nickname: { min: 2, max: 20 },
   realName: { min: 2, max: 40 },
 };
 

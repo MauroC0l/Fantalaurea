@@ -1,5 +1,5 @@
 import type { Action, ActionDraft } from '../domain/action';
-import type { ChatMessage, ChatPeer, ConversationSummary, VoiceRecording } from '../domain/chat';
+import type { ChatMessage, ChatPeer, ConversationSummary, DeleteScope, VoiceRecording } from '../domain/chat';
 import type { Completion } from '../domain/completion';
 import type { AccessLogEntry, JoinRequest } from '../domain/evening';
 import type { FeatureName, Features } from '../domain/features';
@@ -143,13 +143,32 @@ export interface Chat {
   messages(session: PlayerSession, conversationId: string, before: Date | null): Promise<readonly ChatMessage[]>;
   mediaLinks(session: PlayerSession, messageIds: readonly string[]): Promise<ReadonlyMap<string, ChatMediaLinks>>;
   open(session: PlayerSession, otherPlayerId: string): Promise<Result<string, FeatureFailure>>;
-  sendText(session: PlayerSession, conversationId: string, text: string): Promise<Result<void, FeatureFailure>>;
-  sendPhoto(session: PlayerSession, conversationId: string, photo: PreparedPhoto): Promise<Result<void, FeatureFailure>>;
-  sendVoice(session: PlayerSession, conversationId: string, voice: VoiceRecording): Promise<Result<void, FeatureFailure>>;
-  deleteMessage(session: PlayerSession, messageId: string): Promise<Result<void, WriteFailure>>;
+  /** replyTo: id of the message answered, if any. */
+  sendText(session: PlayerSession, conversationId: string, text: string, replyTo: string | null): Promise<Result<void, FeatureFailure>>;
+  sendPhoto(
+    session: PlayerSession,
+    conversationId: string,
+    photo: PreparedPhoto,
+    replyTo: string | null,
+  ): Promise<Result<void, FeatureFailure>>;
+  sendVoice(
+    session: PlayerSession,
+    conversationId: string,
+    voice: VoiceRecording,
+    replyTo: string | null,
+  ): Promise<Result<void, FeatureFailure>>;
+  editMessage(session: PlayerSession, messageId: string, text: string): Promise<Result<void, FeatureFailure>>;
+  deleteMessage(session: PlayerSession, messageId: string, scope: DeleteScope): Promise<Result<void, WriteFailure>>;
+  forward(session: PlayerSession, messageId: string, conversationIds: readonly string[]): Promise<Result<void, FeatureFailure>>;
   markRead(session: PlayerSession, conversationId: string): Promise<void>;
-  /** A conversation of this player changed: new or deleted message. */
+  markUnread(session: PlayerSession, conversationId: string): Promise<Result<void, WriteFailure>>;
+  /** "empty" keeps the chat in the list; "remove" takes it out until a new message arrives. Only for this player. */
+  clear(session: PlayerSession, conversationId: string, mode: 'empty' | 'remove'): Promise<Result<void, WriteFailure>>;
+  /** Tells the other person "sta scrivendo…". Fire and forget. */
+  typing(session: PlayerSession, conversationId: string): void;
+  /** A conversation of this player changed: new, edited or deleted message. */
   onInbox(session: PlayerSession, listener: (conversationId: string) => void): () => void;
+  onTyping(session: PlayerSession, listener: (conversationId: string) => void): () => void;
 }
 
 export type RecordingFailure = 'denied' | 'unsupported';

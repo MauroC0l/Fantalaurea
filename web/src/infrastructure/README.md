@@ -24,16 +24,25 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
   - `onChange` ascolta quel canale, raggruppa i segnali (300 ms) e al ritorno in primo piano
     del telefono segnala tutte le tabelle.
   - Nel log admin invia lo user agent del telefono.
-- `supabase/supabase-chat.ts`: `SupabaseChat(client, url)` implementa `Chat` (ADR 0015).
-  - Letture e testo con le RPC (`conversations`, `conversation`, `messages`, `open_conversation`,
-    `send_message`, `mark_read`); foto, vocali, link dei file ed eliminazione con la Edge
-    Function (`chat-photo`, `chat-voice`, `chat-media`, `delete-message`).
-  - I link dei file sono tenuti in una cache per messaggio, come quelli delle foto.
-  - Tempo reale: ogni giocatore ascolta il proprio canale `inbox:<inboxKey>`, evento `message`
-    con `{ conversationId }` e nient'altro. Chi invia o elimina riceve dal server la chiave del
+- `supabase/supabase-chat.ts`: `SupabaseChat(client, url)` implementa `Chat` (ADR 0015, 0016).
+  - Letture, testo e ciò che non tocca file con le RPC (`conversations`, `conversation`,
+    `messages`, `open_conversation`, `send_message` con `p_reply_to`, `edit_message`,
+    `mark_read`, `mark_unread`, `clear_conversation`, `hide_message` per "elimina per me");
+    foto, vocali, link dei file, "elimina per tutti" e inoltro con la Edge Function
+    (`chat-photo` / `chat-voice` con `replyTo`, `chat-media`, `delete-message`, `forward`).
+  - I link dei file sono tenuti in una cache per messaggio, come quelli delle foto; un
+    messaggio eliminato per tutti esce dalla cache.
+  - Tempo reale: ogni giocatore ascolta il proprio canale `inbox:<inboxKey>`, con due eventi che
+    portano solo `{ conversationId }`: `message` (qualcosa è cambiato) e `typing` ("sta
+    scrivendo"). Un solo canale per telefono porta entrambi: due canali sullo stesso topic si
+    disturbano. Chi invia, modifica, elimina o inoltra riceve dal server la chiave del
     destinatario e lo avvisa lì con `httpSend`, senza doversi collegare al canale; avvisa
-    subito anche le schermate di questo telefono. Un'eliminazione avvisa con id vuoto: "ricarica
-    quello che mostri".
+    subito anche le schermate di questo telefono. Anche l'eliminazione restituisce l'id della
+    conversazione, così si ricarica solo quella.
+  - Il "sta scrivendo" parte prima di qualsiasi messaggio, quindi la chiave dell'altra persona
+    arriva da `conversation()` (campo `otherInbox`) ed è tenuta in memoria per conversazione.
+  - `markUnread` e `clear` riguardano solo questo telefono: avvisano le schermate locali con id
+    vuoto ("ricarica quello che mostri") e nessun altro.
   - `markRead` non avvisa le schermate locali: chi segna come letto è la conversazione, che
     riceverebbe il proprio segnale e rileggerebbe all'infinito. La lista la aggiorna
     `ConversationState` tramite `onRead`.
@@ -59,5 +68,5 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
 - Dati posseduti: la chiave `fantalaurea:session-token` in `localStorage`, le cache dei link
   (foto e file della chat).
 - Ascolta e pubblica: il canale broadcast `fantalaurea` (solo nomi di tabelle) e i canali
-  `inbox:<chiave>` (solo id di conversazione). Pubblica anche le notifiche di
-  `GameBoard.onChange` e `Chat.onInbox`.
+  `inbox:<chiave>` (eventi `message` e `typing`, solo id di conversazione). Pubblica anche le
+  notifiche di `GameBoard.onChange`, `Chat.onInbox` e `Chat.onTyping`.

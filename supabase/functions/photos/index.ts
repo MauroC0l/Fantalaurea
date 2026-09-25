@@ -82,6 +82,8 @@ async function route(request: Request): Promise<Reply> {
       return chatMedia(body.token, body.messageIds);
     case 'delete-message':
       return deleteMessage(body.token, body.messageId);
+    case 'forward':
+      return forwardMessage(body.token, body.messageId, body.conversationIds);
     default:
       return REJECTED;
   }
@@ -108,7 +110,10 @@ async function sendChatPhoto(form: FormData): Promise<Reply> {
   const conversationId = form.get('conversationId');
   const full = form.get('full');
   const thumbnail = form.get('thumbnail');
-  if (!isUuid(conversationId) || !isJpeg(full, MAX_FULL_BYTES) || !isJpeg(thumbnail, MAX_THUMBNAIL_BYTES)) return REJECTED;
+  const replyTo = replyToOf(form);
+  if (!isUuid(conversationId) || replyTo === false || !isJpeg(full, MAX_FULL_BYTES) || !isJpeg(thumbnail, MAX_THUMBNAIL_BYTES)) {
+    return REJECTED;
+  }
 
   const mediaId = crypto.randomUUID();
   await uploadTo(CHAT_BUCKET, chatPhotoPath(mediaId), full, 'image/jpeg');
@@ -120,6 +125,7 @@ async function sendChatPhoto(form: FormData): Promise<Reply> {
     p_media_id: mediaId,
     p_mime: 'image/jpeg',
     p_duration_ms: null,
+    p_reply_to: replyTo,
   });
   if (result.status !== 'ok') await removeChatFiles([chatPhotoPath(mediaId), chatThumbnailPath(mediaId)]);
   return result;
@@ -132,8 +138,10 @@ async function sendChatVoice(form: FormData): Promise<Reply> {
   const audio = form.get('audio');
   const durationMs = Number(form.get('durationMs'));
   const mime = audio instanceof File ? audio.type.split(';')[0] : '';
+  const replyTo = replyToOf(form);
   if (
     !isUuid(conversationId) ||
+    replyTo === false ||
     !(audio instanceof File) ||
     audio.size === 0 ||
     audio.size > MAX_VOICE_BYTES ||
@@ -155,6 +163,7 @@ async function sendChatVoice(form: FormData): Promise<Reply> {
     p_media_id: mediaId,
     p_mime: mime,
     p_duration_ms: Math.round(durationMs),
+    p_reply_to: replyTo,
   });
   if (result.status !== 'ok') await removeChatFiles([path]);
   return result;
@@ -193,16 +202,66 @@ async function deleteMessage(token: unknown, messageId: unknown): Promise<Reply>
   const playerId = await playerOf(token);
   if (!playerId) return UNAUTHORIZED;
   if (!isUuid(messageId)) return REJECTED;
-  const result = await call<{ status: string; kind?: string; mediaId?: string; mime?: string; recipientInbox?: string }>(
-    'svc_delete_message',
-    { p_player: playerId, p_message: messageId },
-  );
+  const result = await call<{
+    status: string;
+    kind?: string;
+    mediaId?: string;
+    mime?: string;
+    conversationId?: string;
+    recipientInbox?: string;
+  }>('svc_delete_message', { p_player: playerId, p_message: messageId });
   if (result.status !== 'ok') return { status: result.status };
-  if (result.kind === 'photo' && result.mediaId) {
-    await removeChatFiles([chatPhotoPath(result.mediaId), chatThumbnailPath(result.mediaId)]);
+  if (result.mediaId && result.kind) await removeChatFiles(chatMediaPaths(result.kind, result.mediaId, result.mime ?? ''));
+  return { status: 'ok', conversationId: result.conversationId, recipientInbox: result.recipientInbox };
+}
+
+interface ForwardResult {
+  status: string;
+  kind?: string;
+  sourceMediaId?: string | null;
+  mime?: string | null;
+  copies?: { messageId: string; conversationId: string; mediaId: string | null; recipientInbox: string }[];
+}
+
+/** Media are copied, not shared: deleting one copy must not break the others. */
+async function forwardMessage(token: unknown, messageId: unknown, conversationIds: unknown): Promise<Reply> {
+  const playerId = await playerOf(token);
+  if (!playerId) return UNAUTHORIZED;
+  if (!isUuid(messageId) || !Array.isArray(conversationIds) || !conversationIds.every(isUuid)) return REJECTED;
+  const result = await call<ForwardResult>('svc_forward_message', {
+    p_player: playerId,
+    p_message: messageId,
+    p_conversations: conversationIds,
+  });
+  if (result.status !== 'ok' || !result.copies || !result.kind) return { status: result.status };
+
+  const delivered = [];
+  for (const copy of result.copies) {
+    if (result.sourceMediaId && copy.mediaId) {
+      const from = chatMediaPaths(result.kind, result.sourceMediaId, result.mime ?? '');
+      const to = chatMediaPaths(result.kind, copy.mediaId, result.mime ?? '');
+      const copied = await Promise.all(from.map((path, i) => db.storage.from(CHAT_BUCKET).copy(path, to[i])));
+      if (copied.some(({ error }) => error)) {
+        console.error('forward copy failed', copied.map(({ error }) => error));
+        await removeChatFiles(to);
+        await call('svc_drop_message', { p_message: copy.messageId });
+        continue;
+      }
+    }
+    delivered.push({ conversationId: copy.conversationId, recipientInbox: copy.recipientInbox });
   }
-  if (result.kind === 'voice' && result.mediaId && result.mime) await removeChatFiles([voicePath(result.mediaId, result.mime)]);
-  return { status: 'ok', recipientInbox: result.recipientInbox };
+  return { status: 'ok', delivered };
+}
+
+/** null = no reply, false = not a valid id. */
+function replyToOf(form: FormData): string | null | false {
+  const value = form.get('replyTo');
+  if (value === null || value === '') return null;
+  return isUuid(value) ? value : false;
+}
+
+function chatMediaPaths(kind: string, mediaId: string, mime: string): string[] {
+  return kind === 'photo' ? [chatPhotoPath(mediaId), chatThumbnailPath(mediaId)] : [voicePath(mediaId, mime)];
 }
 
 /** Evening over: every chat file goes, whoever sent it. */

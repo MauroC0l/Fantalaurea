@@ -17,7 +17,7 @@
   import { ChatListState } from './features/chat/chat-list-state.svelte';
   import ConversationScreen from './features/chat/ConversationScreen.svelte';
   import { ConversationState } from './features/chat/conversation-state.svelte';
-  import { ALL_FEATURES_ON } from './domain/features';
+  import { ALL_FEATURES_ON, type FeatureName } from './domain/features';
   import { GameState } from './features/game/game-state.svelte';
   import JoinScreen from './features/join/JoinScreen.svelte';
   import SecretWordScreen from './features/join/SecretWordScreen.svelte';
@@ -54,7 +54,7 @@
 
   const PLAYER_TABS = [
     { id: 'bacheca', label: 'Bacheca', icon: 'home', href: hrefTo({ name: 'bacheca' }), feature: 'feed' },
-    { id: 'azioni', label: 'Azioni', icon: 'checklist', href: hrefTo({ name: 'azioni' }), feature: null },
+    { id: 'azioni', label: 'Azioni', icon: 'checklist', href: hrefTo({ name: 'azioni' }), feature: 'actions' },
     { id: 'classifica', label: 'Classifica', icon: 'trophy', href: hrefTo({ name: 'classifica' }), feature: 'leaderboard' },
     { id: 'chat', label: 'Chat', icon: 'chat', href: hrefTo({ name: 'chat' }), feature: 'chat' },
     { id: 'profilo', label: 'Profilo', icon: 'user', href: hrefTo({ name: 'profilo' }), feature: null },
@@ -74,21 +74,32 @@
 
   const features = $derived(app.kind === 'playing' ? app.game.features : ALL_FEATURES_ON);
 
-  /** Screens behind a switched-off feature fall back to the actions (ADR 0014). */
+  const SCREEN_FEATURES: Partial<Record<PlayerScreen, FeatureName>> = {
+    bacheca: 'feed',
+    azioni: 'actions',
+    classifica: 'leaderboard',
+    chat: 'chat',
+    conversazione: 'chat',
+  };
+
+  /** The first tab still on: the profile is always there (ADR 0014). */
+  const homeScreen = $derived(
+    PLAYER_TABS.find((tab) => tab.feature === null || features[tab.feature])?.id ?? 'profilo',
+  );
+
+  /** A screen behind a switched-off feature falls back to the first tab still on. */
   const playerScreen = $derived.by((): PlayerScreen => {
     const name = router.current?.name ?? '';
-    const wanted = (PLAYER_SCREENS.includes(name) ? name : features.feed ? 'bacheca' : 'azioni') as PlayerScreen;
-    if (wanted === 'bacheca' && !features.feed) return 'azioni';
-    if (wanted === 'classifica' && !features.leaderboard) return 'azioni';
-    if ((wanted === 'chat' || wanted === 'conversazione') && !features.chat) return 'azioni';
-    return wanted;
+    const wanted = (PLAYER_SCREENS.includes(name) ? name : homeScreen) as PlayerScreen;
+    const feature = SCREEN_FEATURES[wanted];
+    return feature && !features[feature] ? homeScreen : wanted;
   });
 
-  // Keeps the address in line when a switched-off screen fell back to the actions.
+  // Keeps the address in line when a switched-off screen fell back.
   $effect(() => {
     const name = router.current?.name;
-    if (app.kind === 'playing' && playerScreen === 'azioni' && name && name !== 'azioni' && PLAYER_SCREENS.includes(name)) {
-      router.go({ name: 'azioni' });
+    if (app.kind === 'playing' && name && name !== playerScreen && PLAYER_SCREENS.includes(name) && SCREEN_FEATURES[name as PlayerScreen]) {
+      router.go({ name: homeScreen });
     }
   });
 
@@ -289,13 +300,15 @@
       {:else if playerScreen === 'classifica'}
         <ParticipantsScreen game={app.game} links={app.links} />
       {:else if playerScreen === 'chat'}
-        <ChatListScreen list={app.chatList} links={app.links} />
+        <ChatListScreen list={app.chatList} links={app.links} haptics={deps.haptics} />
       {:else if playerScreen === 'conversazione' && conversation}
         <ConversationScreen
           {conversation}
+          chatList={app.chatList}
           links={app.links}
           recorder={deps.recorder}
           haptics={deps.haptics}
+          clipboard={deps.clipboard}
           onback={() => router.go({ name: 'chat' })}
         />
       {:else if (playerScreen === 'profilo' || playerScreen === 'giocatore') && profile}
@@ -320,7 +333,7 @@
           {/snippet}
         </ProfileScreen>
       {:else if playerScreen === 'regole'}
-        <RulesScreen />
+        <RulesScreen features={app.game.features} />
       {:else}
         <FeedScreen feed={app.feed} links={app.links} haptics={deps.haptics} />
       {/if}

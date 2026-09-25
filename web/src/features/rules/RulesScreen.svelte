@@ -1,5 +1,6 @@
 <script lang="ts">
   import { fly } from 'svelte/transition';
+  import { ALL_FEATURES_ON, type FeatureName, type Features } from '../../domain/features';
   import Button from '../../ui/components/Button.svelte';
   import Icon from '../../ui/components/Icon.svelte';
   import Screen from '../../ui/components/Screen.svelte';
@@ -10,23 +11,35 @@
   interface Props {
     /** Present only on first access: the rules then end with the call to join. */
     onjoin?: () => void;
+    /** What the admin switched on; before joining nobody knows yet, so everything is shown. */
+    features?: Features;
   }
 
-  let { onjoin }: Props = $props();
+  let { onjoin, features = ALL_FEATURES_ON }: Props = $props();
 
-  const STEPS: readonly { icon: IconName; title: string; text: string }[] = [
-    { icon: 'key', title: 'Parola della serata', text: 'La festa è a porte chiuse: per entrare serve la parola segreta che ti dà chi organizza.' },
-    { icon: 'party', title: 'Iscriviti', text: 'Scegli un nickname divertente e scrivi il tuo nome vero, così tutti ti riconoscono.' },
-    { icon: 'checklist', title: 'Completa le azioni', text: 'Tocca un’azione per leggerla e segnala come fatta. Ogni azione vale una volta sola: finisce tra le Fatte.' },
-    { icon: 'camera', title: 'Alcune vogliono una foto', text: 'Per certe azioni serve una prova: la foto finisce in bacheca, visibile a tutti i partecipanti.' },
-    { icon: 'home', title: 'La bacheca', text: 'Qui compaiono le imprese di tutti e i post con le foto della serata. Metti like e scopri chi li ha messi.' },
-    { icon: 'user', title: 'Il tuo profilo', text: 'Aggiungi una foto e una bio, e guarda i profili degli altri dalla classifica.' },
-    { icon: 'alert', title: 'Anche i malus', text: 'I malus li segni tu. Il gioco si basa sulla fiducia: niente furbate.' },
-    { icon: 'crown', title: 'Il bonus comune', text: 'Vale per tutti: chi lo segna lo fa comparire come fatto per ogni giocatore.' },
-    { icon: 'undo', title: 'Hai sbagliato?', text: 'Dalle Fatte puoi annullare un’azione: torna tra quelle da fare.' },
-    { icon: 'flame', title: 'Punti e difficoltà', text: 'Ogni azione vale dei punti (i malus li tolgono) e ha 1-3 fiamme di difficoltà: filtra quelle alla tua portata.' },
-    { icon: 'users', title: 'La classifica', text: 'Nella sezione Partecipanti vedi chi è in testa: vince chi fa più punti.' },
+  interface Line {
+    readonly icon: IconName;
+    readonly title: string;
+    readonly text: string;
+  }
+
+  const RULES: readonly Line[] = [
+    { icon: 'key', title: 'Entra', text: 'Serve la parola della serata. Nickname a piacere, nome vero per farti riconoscere.' },
+    { icon: 'checklist', title: 'Fai le azioni', text: 'Ognuna vale una volta. Sbagliato? La annulli dalle Fatte.' },
+    { icon: 'flame', title: 'Punti', text: 'I bonus li danno, i malus li tolgono. Le fiamme dicono quanto è difficile.' },
+    { icon: 'camera', title: 'Prove', text: 'Alcune azioni vogliono una foto.' },
+    { icon: 'crown', title: 'Per tutti', text: 'Il bonus comune, segnato da uno, vale per ogni giocatore.' },
+    { icon: 'alert', title: 'Fiducia', text: 'I malus li segni tu. Niente furbate.' },
   ];
+
+  const EXTRAS: readonly (Line & { readonly feature: FeatureName | null })[] = [
+    { feature: 'feed', icon: 'home', title: 'Bacheca', text: 'Foto e imprese di tutti, con i like.' },
+    { feature: 'chat', icon: 'chat', title: 'Chat', text: 'Messaggi privati, foto e vocali.' },
+    { feature: 'leaderboard', icon: 'trophy', title: 'Classifica', text: 'Chi è in testa, e i profili degli altri.' },
+    { feature: null, icon: 'user', title: 'Profilo', text: 'La tua foto, la bio e le tue foto della serata.' },
+  ];
+
+  const extras = $derived(EXTRAS.filter((extra) => extra.feature === null || features[extra.feature]));
 </script>
 
 {#snippet joinFooter()}
@@ -35,30 +48,39 @@
   </Button>
 {/snippet}
 
+{#snippet lines(items: readonly Line[], offset: number)}
+  <ol class="lines">
+    {#each items as line, index (line.title)}
+      <li in:fly={{ y: 24, duration: duration('slow'), delay: stagger(index + offset, 70), easing }}>
+        <span class="line-icon"><Icon name={line.icon} size={20} /></span>
+        <p><strong>{line.title}.</strong> {line.text}</p>
+      </li>
+    {/each}
+  </ol>
+{/snippet}
+
 <Screen withTabBar={!onjoin} footer={onjoin ? joinFooter : undefined}>
   <section class="hero" in:fly={{ y: 24, duration: duration('slow'), easing }}>
     <p class="eyebrow">{onjoin ? 'Benvenuto alla' : 'Le regole della'}</p>
     <h1>Fanta<br />laurea</h1>
   </section>
 
-  <div in:fly={{ y: 24, duration: duration('slow'), delay: stagger(1, 90), easing }}>
+  <div in:fly={{ y: 24, duration: duration('slow'), delay: stagger(1, 70), easing }}>
     <Surface tone="common" highlighted>
       <p class="goal-label">L’obiettivo</p>
-      <p class="goal">Completare le azioni. Semplice: più ne fai, più ti diverti.</p>
+      <p class="goal">Fare più punti di tutti.</p>
     </Surface>
   </div>
 
-  <ol class="steps">
-    {#each STEPS as step, index (step.title)}
-      <li in:fly={{ y: 24, duration: duration('slow'), delay: stagger(index + 2, 90), easing }}>
-        <span class="step-icon"><Icon name={step.icon} /></span>
-        <div>
-          <h2>{step.title}</h2>
-          <p>{step.text}</p>
-        </div>
-      </li>
-    {/each}
-  </ol>
+  <section class="block">
+    <h2>Le regole</h2>
+    {@render lines(RULES, 2)}
+  </section>
+
+  <section class="block">
+    <h2>Anche nell’app</h2>
+    {@render lines(extras, RULES.length + 2)}
+  </section>
 </Screen>
 
 <style>
@@ -104,37 +126,49 @@
     line-height: var(--leading-tight);
   }
 
-  .steps {
+  .block {
     display: grid;
-    gap: var(--space-5);
+    gap: var(--space-3);
+  }
+
+  h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-lg);
+    font-weight: var(--weight-black);
+  }
+
+  .lines {
+    display: grid;
+    gap: var(--space-3);
     list-style: none;
   }
 
   li {
     display: flex;
-    gap: var(--space-4);
-    align-items: flex-start;
+    gap: var(--space-3);
+    align-items: center;
   }
 
-  .step-icon {
+  .line-icon {
     display: grid;
     place-items: center;
     flex: none;
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-md);
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
     background: var(--color-surface-strong);
     border: 1px solid var(--color-border);
     color: var(--color-accent-3);
   }
 
-  h2 {
-    font-size: var(--text-md);
-    font-weight: var(--weight-black);
-  }
-
   li p {
     color: var(--color-text-muted);
+    line-height: var(--leading-normal);
+  }
+
+  strong {
+    color: var(--color-text);
+    font-weight: var(--weight-black);
   }
 
   @keyframes glow {

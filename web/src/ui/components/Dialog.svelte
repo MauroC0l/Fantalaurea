@@ -1,3 +1,9 @@
+<script lang="ts" module>
+  // A sheet can open over another (e.g. the photo choice inside a confirmation): the page stays
+  // locked until the last one closes.
+  let openSheets = 0;
+</script>
+
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import { fade, fly } from 'svelte/transition';
@@ -22,10 +28,11 @@
     panel.focus();
     const closeOnEscape = (event: KeyboardEvent) => event.key === 'Escape' && onclose();
     addEventListener('keydown', closeOnEscape);
+    openSheets++;
     document.body.classList.add('scroll-locked');
     return () => {
       removeEventListener('keydown', closeOnEscape);
-      document.body.classList.remove('scroll-locked');
+      if (--openSheets === 0) document.body.classList.remove('scroll-locked');
       previousFocus?.focus();
     };
   });

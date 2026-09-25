@@ -217,9 +217,24 @@ describe('admin actions', () => {
 });
 
 describe('features', () => {
+  it('refuses completions while the actions are switched off', async () => {
+    const alice = await asPlayer('Alice');
+    const [action] = (await backend.catalog(alice)).filter((a) => a.photoPolicy !== 'required' && a.kind !== 'common');
+    await backend.setFeature(admin, 'actions', false);
+    expect(await backend.complete(alice, action.id)).toEqual({ ok: false, error: 'rejected' });
+    await backend.setFeature(admin, 'actions', true);
+    expect(await backend.complete(alice, action.id)).toEqual({ ok: true, value: undefined });
+  });
+
+  it('accepts new nicknames up to 20 characters', async () => {
+    await asPlayer('x'.repeat(20), 'Venti Caratteri');
+    expect((await backend.join(request('y'.repeat(21), 'Ventuno Caratteri'))).ok).toBe(false);
+  });
+
+
   it('lets the admin switch features off, and the server enforces it', async () => {
     const alice = await asPlayer('Alice');
-    expect(await backend.features(alice)).toEqual({ chat: true, feed: true, leaderboard: true });
+    expect(await backend.features(alice)).toEqual({ actions: true, chat: true, feed: true, leaderboard: true });
     await backend.setFeature(admin, 'feed', false);
     expect((await backend.features(alice)).feed).toBe(false);
     expect(await backend.createPost(alice, photo(), 'no')).toEqual({ ok: false, error: 'disabled' });
@@ -230,26 +245,31 @@ describe('features', () => {
 describe('chat', () => {
   const voice = () => ({ blob: new Blob(['voce'], { type: 'audio/mp4' }), mime: 'audio/mp4', durationMs: 1500 });
 
-  it('opens one conversation per pair and exchanges text, photos and voice', async () => {
+  async function pair() {
     const alice = await asPlayer('Alice');
     const bob = await asPlayer('Bob');
     const opened = await chat.open(alice, bob.player.id);
     if (!opened.ok) throw new Error('open');
-    expect(await chat.open(bob, alice.player.id)).toEqual(opened);
+    return { alice, bob, id: opened.value };
+  }
+
+  it('opens one conversation per pair and exchanges text, photos and voice', async () => {
+    const { alice, bob, id } = await pair();
+    expect(await chat.open(bob, alice.player.id)).toEqual({ ok: true, value: id });
     expect(await chat.open(alice, alice.player.id)).toEqual({ ok: false, error: 'rejected' });
 
-    await chat.sendText(alice, opened.value, 'Ciao!');
-    await chat.sendPhoto(alice, opened.value, photo());
+    await chat.sendText(alice, id, 'Ciao!', null);
+    await chat.sendPhoto(alice, id, photo(), null);
     const [bobConversation] = await chat.conversations(bob);
-    expect(bobConversation).toMatchObject({ other: { nickname: 'Alice' }, unread: 2 });
-    await chat.markRead(bob, opened.value);
+    expect(bobConversation).toMatchObject({ other: { nickname: 'Alice' }, unread: 2, marked: false });
+    await chat.markRead(bob, id);
     expect((await chat.conversations(bob))[0].unread).toBe(0);
 
     // Replying counts as reading: the sender never has unread messages of their own.
-    await chat.sendVoice(bob, opened.value, voice());
+    await chat.sendVoice(bob, id, voice(), null);
     expect((await chat.conversations(alice))[0]).toMatchObject({ unread: 1, last: { kind: 'voice', mine: false } });
 
-    const messages = await chat.messages(bob, opened.value, null);
+    const messages = await chat.messages(bob, id, null);
     expect(messages.map((m) => m.kind)).toEqual(['voice', 'photo', 'text']);
 
     const links = await chat.mediaLinks(bob, messages.map((m) => m.id));
@@ -257,31 +277,76 @@ describe('chat', () => {
     expect((await fetch(links.get(messages[1].id)!.thumbnailUrl!)).status).toBe(200);
   });
 
-  it('keeps conversations private and lets only the sender delete a message', async () => {
-    const alice = await asPlayer('Alice');
-    const bob = await asPlayer('Bob');
+  it('keeps conversations private; only the sender deletes for everyone, anyone for themselves', async () => {
+    const { alice, bob, id } = await pair();
     const carl = await asPlayer('Carl');
-    const opened = await chat.open(alice, bob.player.id);
-    if (!opened.ok) throw new Error('open');
-    await chat.sendPhoto(alice, opened.value, photo());
-    const [message] = await chat.messages(alice, opened.value, null);
+    await chat.sendPhoto(alice, id, photo(), null);
+    await chat.sendText(bob, id, 'Bella!', null);
+    const [answer, picture] = await chat.messages(alice, id, null);
 
-    expect(await chat.messages(carl, opened.value, null)).toEqual([]);
-    expect(await chat.conversation(carl, opened.value)).toBeNull();
-    expect((await chat.mediaLinks(carl, [message.id])).size).toBe(0);
-    expect(await chat.deleteMessage(bob, message.id)).toEqual({ ok: false, error: 'rejected' });
-    expect(await chat.deleteMessage(alice, message.id)).toEqual({ ok: true, value: undefined });
-    expect(await chat.messages(bob, opened.value, null)).toEqual([]);
+    expect(await chat.messages(carl, id, null)).toEqual([]);
+    expect(await chat.conversation(carl, id)).toBeNull();
+    expect((await chat.mediaLinks(carl, [picture.id])).size).toBe(0);
+    expect(await chat.deleteMessage(bob, picture.id, 'everyone')).toEqual({ ok: false, error: 'rejected' });
+
+    expect(await chat.deleteMessage(alice, picture.id, 'everyone')).toEqual({ ok: true, value: undefined });
+    expect((await chat.messages(bob, id, null)).map((m) => m.kind)).toEqual(['text', 'deleted']);
+    expect((await chat.mediaLinks(bob, [picture.id])).size).toBe(0);
+
+    await chat.deleteMessage(alice, answer.id, 'me');
+    expect((await chat.messages(alice, id, null)).map((m) => m.kind)).toEqual(['deleted']);
+    expect((await chat.messages(bob, id, null)).map((m) => m.kind)).toEqual(['text', 'deleted']);
+  });
+
+  it('replies, edits own texts and forwards copies to other chats', async () => {
+    const { alice, bob, id } = await pair();
+    const carl = await asPlayer('Carl');
+    const other = await chat.open(alice, carl.player.id);
+    if (!other.ok) throw new Error('open');
+    await chat.sendText(bob, id, 'Arrivi?', null);
+    const [question] = await chat.messages(alice, id, null);
+    await chat.sendText(alice, id, 'Tra 5 minuti', question.id);
+    const [reply] = await chat.messages(bob, id, null);
+    expect(reply.replyTo).toMatchObject({ id: question.id, kind: 'text', text: 'Arrivi?' });
+
+    expect(await chat.editMessage(bob, reply.id, 'hack')).toEqual({ ok: false, error: 'rejected' });
+    expect(await chat.editMessage(alice, reply.id, 'Tra 10 minuti')).toEqual({ ok: true, value: undefined });
+    expect((await chat.messages(bob, id, null))[0]).toMatchObject({ kind: 'text', text: 'Tra 10 minuti', edited: true });
+
+    await chat.sendPhoto(bob, id, photo(), null);
+    const [picture] = await chat.messages(alice, id, null);
+    expect(await chat.forward(carl, picture.id, [other.value])).toEqual({ ok: false, error: 'rejected' });
+    expect(await chat.forward(alice, picture.id, [other.value])).toEqual({ ok: true, value: undefined });
+    const [copy] = await chat.messages(carl, other.value, null);
+    expect(copy).toMatchObject({ kind: 'photo', forwarded: true, senderId: alice.player.id });
+    expect((await fetch((await chat.mediaLinks(carl, [copy.id])).get(copy.id)!.url)).status).toBe(200);
+  });
+
+  it('marks as unread, empties and removes a chat only for whoever asks', async () => {
+    const { alice, bob, id } = await pair();
+    await chat.sendText(bob, id, 'Ehi', null);
+    await chat.markRead(alice, id);
+    expect(await chat.markUnread(alice, id)).toEqual({ ok: true, value: undefined });
+    expect((await chat.conversations(alice))[0]).toMatchObject({ unread: 0, marked: true });
+
+    await chat.clear(alice, id, 'empty');
+    expect((await chat.conversations(alice))[0]).toMatchObject({ last: null, marked: false });
+    expect(await chat.messages(alice, id, null)).toEqual([]);
+    expect(await chat.messages(bob, id, null)).toHaveLength(1);
+
+    await chat.clear(alice, id, 'remove');
+    expect(await chat.conversations(alice)).toEqual([]);
+    await chat.sendText(bob, id, 'Ci sei?', null);
+    const [back] = await chat.conversations(alice);
+    expect(back).toMatchObject({ unread: 1, last: { text: 'Ci sei?' } });
+    expect(await chat.messages(alice, id, null)).toHaveLength(1);
   });
 
   it('refuses messages when the admin switches the chat off', async () => {
-    const alice = await asPlayer('Alice');
-    const bob = await asPlayer('Bob');
-    const opened = await chat.open(alice, bob.player.id);
-    if (!opened.ok) throw new Error('open');
+    const { alice, id } = await pair();
     await backend.setFeature(admin, 'chat', false);
-    expect(await chat.sendText(alice, opened.value, 'ehi')).toEqual({ ok: false, error: 'disabled' });
-    expect(await chat.sendVoice(alice, opened.value, voice())).toEqual({ ok: false, error: 'disabled' });
+    expect(await chat.sendText(alice, id, 'ehi', null)).toEqual({ ok: false, error: 'disabled' });
+    expect(await chat.sendVoice(alice, id, voice(), null)).toEqual({ ok: false, error: 'disabled' });
     await backend.setFeature(admin, 'chat', true);
   });
 });

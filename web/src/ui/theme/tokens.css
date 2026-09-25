@@ -22,6 +22,11 @@
   --color-accent-2: #a855f7;
   --color-accent-3: #22d3ee;
   --gradient-party: linear-gradient(115deg, var(--color-accent-1), var(--color-accent-2) 52%, var(--color-accent-3));
+  /* Chat: my messages in the party colours but deep enough for white text; the others' opaque. */
+  --gradient-bubble-mine: linear-gradient(135deg, #cf2f74, #8141d6);
+  --color-bubble-in: #241934;
+  --color-bubble-in-border: rgb(255 255 255 / 0.08);
+  --color-on-bubble-mine: #ffffff;
 
   --color-bonus: #3ef0a6;
   --color-malus: #ff5470;
