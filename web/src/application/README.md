@@ -11,6 +11,7 @@ Use case dell'app e interfacce (porte) verso ciò che sta fuori: backend, foto, 
 | `PlayerMoves` | `complete`, `completeWithPhoto`, `undo`, `deleteOwnPhoto`, `toggleLike`, `createPost`, `deletePost`, `updateBio`, `setAvatar` |
 | `EveningAdmin` | azioni (`add`/`update`/`remove`), `album`, `deletePhoto`, `secretWord`, `setSecretWord`, `accessLog`, `setFeature`, `players` (tutti i giocatori come `ManagedPlayer`), `setBlocked` (blocca o sblocca: chi è bloccato esce subito), `setPermission`, `resetEvening` |
 | `Chat` (ADR 0015, 0016) | letture: `conversations`, `conversation`, `messages`, `mediaLinks` (`ChatMediaLinks`: link del file e, per le foto, della miniatura); scritture: `open`, `sendText` / `sendPhoto` / `sendVoice` (con `replyTo`: l'id del messaggio a cui si risponde, o `null`), `editMessage`, `deleteMessage(scope)` (`me` \| `everyone`), `forward` (a più conversazioni), `markRead`, `markUnread`, `clear(mode)` (`empty` svuota, `remove` toglie la chat dall'elenco; solo per chi lo chiede); `typing` (segnale "sta scrivendo", senza risposta); `onInbox(listener)`: una conversazione del giocatore è cambiata (messaggio nuovo, modificato o eliminato); `onTyping(listener)`: l'altra persona sta scrivendo in quella conversazione |
+| `Polls` (ADR 0019) | `list` (con la sessione di giocatore o admin; conteggi e votanti arrivano `null` finché le regole del sondaggio li nascondono), `create` (restituisce l'id), `vote` (solo `PlayerSession`: l'admin non vota; le opzioni scelte sostituiscono il voto precedente), `close`, `remove` (autore o admin) |
 | `VoiceRecorder` | `start` (chiede il microfono la prima volta; `RecordingFailure`: `denied` \| `unsupported`), `stop` (restituisce la registrazione, anche se si è fermata da sola al limite), `cancel` |
 | `PhotoProcessor` | `prepare(file, 'original' \| 'square')` |
 | `PhotoExporter` | `canShare`, `share`, `shareText`, `download`, `downloadZip` |
@@ -24,9 +25,12 @@ foto (`completeWithPhoto`, `createPost`, `Chat.sendPhoto`, `Chat.forward`) può 
 `PhotoLimitFailure` (`photo-limit`: il giocatore ha già `PHOTO_LIMIT` foto, ADR 0018); è un
 tipo a parte, sommato solo a queste firme, così le operazioni senza foto non devono gestirlo.
 `JoinFailure` ha anche `blocked` (l'admin ha tolto quel giocatore dalla serata).
+`PollFailure` (= `FeatureFailure` | `forbidden` | `closed` | `locked`) è di `create` e `vote`:
+`forbidden` il giocatore non ha il permesso di creare, `closed` troppo tardi per votare,
+`locked` ha già votato e il cambio non è ammesso. `close` e `remove` restano su `WriteFailure`.
 
-`ChangedTable` elenca le tabelle annunciate da `onChange`, compresa `evening_settings` (parola
-e interruttori). Le pagine hanno una dimensione fissa, `FEED_PAGE_SIZE` = 20 e
+`ChangedTable` (da `CHANGED_TABLES`) elenca le tabelle annunciate da `onChange`, compresa
+`evening_settings` (parola e interruttori) e `polls`. Le pagine hanno una dimensione fissa, `FEED_PAGE_SIZE` = 20 e
 `CHAT_PAGE_SIZE` = 40: una pagina più corta vuol dire che l'elenco è completo, così non serve
 una richiesta in più per scoprire che non c'è altro.
 
@@ -41,7 +45,8 @@ una richiesta in più per scoprire che non c'è altro.
 
 La chat non ha use case qui: le sue regole (testo valido, unione dei messaggi, voci del menu,
 chi può eliminare per tutti) sono funzioni pure di `domain/chat.ts`, usate direttamente dallo
-stato in `features/chat/`.
+stato in `features/chat/`. Lo stesso vale per i sondaggi (`domain/poll.ts`, stato in
+`features/polls/`).
 
 ## Relazioni
 - Dipende da: `domain/`.

@@ -30,10 +30,26 @@ Tipi e regole del gioco, in funzioni pure: niente rete, niente browser, niente S
   l'azione).
 - `evening.ts`: `JoinRequest` (parola segreta + identità + `RealNameResolution`: `ask`,
   `takeover` del profilo esistente o `distinct`), `AccessLogEntry`.
-- `features.ts` (ADR 0014): `FeatureName` (`actions` | `chat` | `feed` | `leaderboard`), `Features`,
+- `features.ts` (ADR 0014): `FeatureName` (`actions` | `chat` | `feed` | `leaderboard` | `polls`), `Features`,
   `ALL_FEATURES_ON` (il valore prima della prima lettura).
 - `feed.ts`: `FeedItem` = `PostItem` | `CompletionItem`, `LikeSummary`, `Liker`, `mergeFeed`
   (più recenti prima, la copia più fresca vince), `withLike`, `isValidCaption` (300 caratteri).
+- `poll.ts` (ADR 0019):
+  - costanti: `POLL_QUESTION_MAX` (200), `POLL_OPTION_MAX` (100), `POLL_OPTIONS_MIN` /
+    `POLL_OPTIONS_MAX` (2–10), `POLL_DURATIONS` (le durate offerte: nessuna, 5, 15, 30 minuti, 1 e
+    2 ore; durate fisse e non data e ora, a una festa serve "tra 15 minuti");
+  - tipi: `ResultsVisibility` (`always` | `after-vote` | `after-close`), `PollRules` (anonimo,
+    più scelte, risultati, cambio voto, chiusura quando hanno votato tutti), `PollDraft` +
+    `PollDraftError`, `PollOption` (`votes` e `voters` sono `null` finché il server li nasconde:
+    il dominio non può inventarli), `PollVoter`, `Poll` (autore `null` = l'admin, `closed` com'era
+    alla lettura, `myVotes`, `canManage`, `resultsVisible`);
+  - `DEFAULT_POLL_RULES` (anonimo, una scelta, risultati dopo il voto, voto modificabile);
+  - regole: `validatePollDraft` (restituisce la bozza ripulita, senza opzioni vuote, o tutti gli
+    errori insieme: domanda 3–200, 2–10 opzioni, nessuna oltre 100 caratteri, nessun doppione
+    senza distinguere maiuscole), `isOpen` (chiuso anche se il tempo è scaduto dopo l'ultima
+    lettura), `hasVoted`, `canVote` (aperto e non ancora votato, o cambio ammesso), `shareOf`
+    (percentuale 0–100 sul totale dei voti: con più scelte un votante conta su più opzioni),
+    `leadingOptions` (le opzioni in testa, nessuna se non ha votato nessuno).
 - `profile.ts`: `Profile` con completamenti, post e `photoCount` (le foto usate, solo sul
   proprio profilo, altrimenti `null`), `PHOTO_LIMIT` = 100 (foto per giocatore tra azioni, post
   e chat, esclusa la foto profilo; ADR 0018), `photosOf` (tutte le foto di un giocatore),

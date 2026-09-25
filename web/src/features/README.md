@@ -14,8 +14,8 @@ Le schermate e il loro stato.
   `switch` esaustivo (`satisfies never`): un errore nuovo nella porta non compila finché la
   schermata non lo gestisce.
 
-## Giocatore (tab Bacheca · Azioni · Classifica · Chat · Profilo)
-Bacheca, Classifica e Chat si possono spegnere dall'admin (ADR 0014): la loro scheda sparisce
+## Giocatore (tab Bacheca · Azioni · Classifica · Chat · Sondaggi · Profilo)
+Bacheca, Classifica, Chat e Sondaggi si possono spegnere dall'admin (ADR 0014): la loro scheda sparisce
 e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 
 - `feed/FeedScreen` + `FeedCard`, `PostComposerDialog`, `LikersDialog`,
@@ -66,6 +66,31 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
     con `Clipboard`, modifica, inoltra, elimina per me / per tutti); trascinandolo a destra si
     risponde; toccando una citazione si salta al messaggio citato, se è già caricato, e lo si
     illumina. Riceve `chatList` per l'elenco delle chat dell'inoltro. Nasconde la tab bar.
+- `polls/` (ADR 0019), la stessa cartella per giocatori e admin:
+  - `polls-state.svelte.ts`: `PollsState`, con una sessione di giocatore o di admin. `voter` è
+    `null` per l'admin, che crea e gestisce ma non vota. Si rilegge quando cambiano `polls` o
+    `players` (entra qualcuno, un bloccato sparisce, un permesso cambia); un orologio (`now`)
+    avanza ogni 15 s, così i conti alla rovescia scendono e un sondaggio a tempo passa tra i
+    chiusi senza rileggere. `create` valida la bozza con `validatePollDraft` prima di chiamare
+    il server (`CreatePollError` = `PollFailure` | errori della bozza); `vote`, `close` e
+    `remove` segnano il sondaggio come occupato (`busy`, un id alla volta). Dopo ogni risposta,
+    anche un rifiuto, rilegge l'elenco: conteggi, chiusure e permessi possono essere cambiati;
+    `unauthorized` → sessione persa. Parte e si ferma con la schermata.
+  - `PollsScreen`: sezioni "aperti" e "chiusi" (con `isOpen`, quindi seguono l'orologio),
+    pulsante "Nuovo" solo con `canCreate` (admin, o giocatore con il permesso, ADR 0018).
+    "Gestisci" apre un `ActionSheet`: chiudi, o elimina con conferma. Toccando le facce di
+    un'opzione si apre l'elenco dei votanti in un `Dialog` con `ScrollArea`. Ogni `PollFailure`
+    ha il suo avviso.
+  - `PollCard`: si scelgono le opzioni (`SelectableRow`, una o più secondo le regole) e poi si
+    preme "Vota", invece di votare al primo tocco: con il voto non modificabile un tocco
+    sbagliato sarebbe definitivo. "Cambia voto" quando le regole lo permettono. I risultati sono
+    `ResultBar` (in testa evidenziate a sondaggio chiuso) e `AvatarStack` dei votanti (non negli
+    anonimi); se il server li nasconde, una riga spiega quando si vedranno. Un badge mostra il
+    tempo che resta.
+  - `PollEditorDialog`: domanda, da 2 a 10 opzioni (aggiungi / togli), `Switch` per anonimo, più
+    scelte, cambio voto e chiusura "quando hanno votato tutti", `ChipGroup` per visibilità dei
+    risultati e durata (`POLL_DURATIONS`); gli errori della bozza diventano messaggi. Si
+    ripulisce a ogni apertura.
 - `game/game-state.svelte.ts`: catalogo, completamenti, classifica, funzioni accese
   (`features`, riletto quando cambia `evening_settings`) e `permissions` (cosa l'admin gli
   lascia creare, ADR 0018; riletto con il resto, anche quando cambia `players`);
@@ -73,7 +98,10 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 - `photos/photo-links.svelte.ts`: `PhotoLinksCache`, i link delle foto come stato reattivo;
   le richieste fatte durante un rendering partono insieme.
 
-## Admin (tab Azioni · Utenti · Album · Serata)
+## Admin (tab Azioni · Utenti · Sondaggi · Album · Serata)
+La scheda Sondaggi è la stessa `polls/PollsScreen` dei giocatori, con `canCreate` sempre vero
+e senza il pulsante "Vota".
+
 - `admin/AdminActionsScreen` + `ActionEditorDialog`: lista, crea, modifica, elimina azioni.
 - `admin/UsersScreen` + `users-state.svelte.ts` (ADR 0018):
   - `UsersState`: tutti i giocatori (`EveningAdmin.players`), bloccati compresi. Si rilegge
@@ -91,7 +119,7 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
   post (come testo da leggere, non come titolo), autore, data e ora e scorre tra le foto; dopo
   un'eliminazione passa alla foto successiva. Le foto della chat non ci sono.
 - `admin/EveningScreen`: parola della serata (condividi, copia, cambia: chi è dentro resta o
-  esce), "Funzioni della serata" (interruttori Azioni / Bacheca / Chat / Classifica), log accessi
+  esce), "Funzioni della serata" (interruttori Azioni / Bacheca / Chat / Classifica / Sondaggi), log accessi
   admin (in una `ScrollArea`), "Termina e ricomincia" con promemoria delle foto.
 - `admin/admin-state.svelte.ts`: catalogo, partecipanti, parola, funzioni e log in tempo
   reale. `setFeature` è ottimista: l'interruttore si sposta subito e torna indietro se il
@@ -99,7 +127,7 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 
 ## Condivisi
 - `routes.ts`: i percorsi (`Route`, `hrefTo`), usati dai link e dal router di `app/`; tra
-  questi `chat`, `conversazione/<id>` e `utenti`.
+  questi `chat`, `conversazione/<id>`, `utenti` e `sondaggi` (uguale per giocatore e admin).
 - `labels.ts`: etichette, formato dell'ora, "5 min fa", `formatDay` ("Oggi", "Ieri", "ven 25
   set") e `startOfDay`, nome leggibile del dispositivo, `PHOTO_LIMIT_MESSAGE` (lo stesso
   avviso per `photo-limit` in Azioni, Bacheca e chat).
@@ -110,4 +138,5 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 - Dipende da: `application/`, `domain/`, `ui/`.
 - Usato da: `app/` (`App.svelte`).
 - Ascolta: `GameBoard.onChange`, `Chat.onInbox`, `Chat.onTyping`.
-- Dati posseduti: stato in memoria di partita, bacheca, chat, profili, pannello, utenti e album.
+- Dati posseduti: stato in memoria di partita, bacheca, chat, profili, pannello, utenti, album
+  e sondaggi.

@@ -1,5 +1,6 @@
 import type {
   Chat,
+  Polls,
   Clipboard,
   EveningAdmin,
   GameBoard,
@@ -22,6 +23,7 @@ import { vibrationHaptics } from '../infrastructure/browser/vibration-haptics';
 import { ChangeSignals } from '../infrastructure/supabase/change-signals';
 import { SupabaseBackend } from '../infrastructure/supabase/supabase-backend';
 import { SupabaseChat } from '../infrastructure/supabase/supabase-chat';
+import { SupabasePolls } from '../infrastructure/supabase/supabase-polls';
 import { createSupabaseClient } from '../infrastructure/supabase/supabase-client';
 import { VOICE_MAX_MS } from '../domain/chat';
 
@@ -32,6 +34,7 @@ export interface AppDependencies {
   readonly admin: EveningAdmin;
   readonly links: PhotoLinkProvider;
   readonly chat: Chat;
+  readonly polls: Polls;
   readonly recorder: VoiceRecorder;
   readonly photos: PhotoProcessor;
   readonly exporter: PhotoExporter;
@@ -63,6 +66,7 @@ export function composeApp(): AppDependencies {
     admin: backend,
     links: backend,
     chat: new SupabaseChat(client, baseUrl),
+    polls: new SupabasePolls(client, signals),
     recorder: browserVoiceRecorder(VOICE_MAX_MS),
     photos: canvasPhotoProcessor(PHOTO_QUALITY),
     exporter: browserPhotoExporter(),

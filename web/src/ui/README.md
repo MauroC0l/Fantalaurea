@@ -16,7 +16,7 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
 - `theme/base.css`: reset e stili globali; rispetta "riduci movimento".
 - `theme/motion.ts`: durate per le transizioni Svelte (duplicano `--duration-*`).
 - `icons.ts`: tracciati SVG delle icone (per la chat: `play`, `pause`, `mic`, `send`, `chat`,
-  `reply`, `forward`, `unread`, `eraser`, `more`).
+  `reply`, `forward`, `unread`, `eraser`, `more`; per i sondaggi `poll`).
   `tone.ts`: `Tone` (`bonus` | `malus` | `common`).
 
 ## Azioni (`actions/`)
@@ -36,6 +36,7 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
 | `PhotoPickerButton` | l'unico pulsante "Carica foto" (input nativi nascosti). Sul telefono apre un `ActionSheet` "Scatta una foto / Scegli dalla galleria"; con un puntatore preciso (computer) apre subito la galleria. La fotocamera ha un input suo con `capture="environment"`: alcuni Android (es. Xiaomi) altrimenti propongono solo la galleria. `label` serve quando il pulsante mostra solo un'icona |
 | `TextField` | etichetta flottante, suggerimento, errore; `multiline`, `inputmode`, `counter` (caratteri rimasti) |
 | `SegmentedControl` | scelta tra poche opzioni con indicatore che scorre |
+| `ChipGroup` | scelta singola tra molte opzioni brevi (`role="radiogroup"`, `value` bindabile): le "pastiglie" vanno a capo sugli schermi stretti, dove un `SegmentedControl` non ci starebbe. Lo usano durata e visibilità dei risultati di un sondaggio |
 | `Switch` | interruttore con etichetta e descrizione |
 | `Disclosure` | tendina: riepilogo sempre visibile, contenuto che si apre animato |
 | `Dialog` | pannello dal basso con sfondo sfocato; Esc o tocco fuori per chiudere. Conta i pannelli aperti: con un pannello sopra un altro (la scelta della foto dentro una conferma) la pagina si sblocca solo quando si chiude l'ultimo |
@@ -54,9 +55,11 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
 | `VoicePlayer` | riproduttore di vocali disegnato da noi sopra un `Audio` nascosto: play/pausa, durata e un'onda finta ma stabile (dipende da `seed`, es. l'id del messaggio: l'onda vera richiederebbe di decodificare l'audio); un tocco sull'onda salta a quel punto |
 | `RecordingIndicator` | registrazione in corso: punto pulsante, tempo trascorso, secondi rimasti vicino al limite |
 | `ProgressBar` | barra di avanzamento a gradiente |
+| `ResultBar` | un'opzione di un sondaggio con il suo risultato: riempimento da sinistra in proporzione a `share` (0–100), percentuale e voti; `mine` aggiunge la spunta del proprio voto, `leading` il colore più forte di chi è in testa |
+| `AvatarStack` | facce sovrapposte con "+N" oltre `max` (5), per esempio chi ha votato un'opzione; con `onclick` diventa toccabile (l'elenco completo), senza è spento. `label` per i lettori di schermo |
 | `DifficultyMeter` | difficoltà come 1-3 fiamme colorate |
 | `PointsPill` | punti con segno, verde se positivi e rosso se negativi |
-| `TabBar` | barra di navigazione fluttuante; ogni scheda può avere un `badge` (non letti, "99+" oltre 99) |
+| `TabBar` | barra di navigazione fluttuante; ogni scheda può avere un `badge` (non letti, "99+" oltre 99). Da 6 schede in su le parole non ci stanno su un telefono: le etichette si nascondono alla vista (i lettori di schermo le leggono ancora) e le icone crescono a 24 px (ADR 0019) |
 | `Surface` | pannello "vetro", evidenziabile nel colore del tono |
 | `Avatar` | iniziali colorate o foto profilo; taglie `sm` / `md` / `lg` |
 | `Badge`, `AnimatedNumber`, `Icon` (anche piena, `filled`) | elementi minori |

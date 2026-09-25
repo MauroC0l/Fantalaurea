@@ -16,7 +16,8 @@
   const activeIndex = $derived(Math.max(0, tabs.findIndex((tab) => tab.id === active)));
 </script>
 
-<nav class="tabbar" style:--count={tabs.length} style:--index={activeIndex}>
+<!-- Six tabs leave no room for words on a phone: then only icons show (labels stay for screen readers). -->
+<nav class="tabbar" class:crowded={tabs.length >= 6} style:--count={tabs.length} style:--index={activeIndex}>
   <span class="indicator" aria-hidden="true"></span>
   {#each tabs as tab (tab.id)}
     <a href={tab.href} class="tab" class:active={tab.id === active} aria-current={tab.id === active ? 'page' : undefined}>
@@ -102,5 +103,18 @@
 
   .tab.active {
     color: var(--color-on-accent);
+  }
+
+  .crowded .label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+
+  .crowded .icon :global(svg) {
+    width: 24px;
+    height: 24px;
   }
 </style>

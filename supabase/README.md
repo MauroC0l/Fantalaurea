@@ -2,7 +2,8 @@
 
 Schema, regole di accesso e funzioni del backend (Postgres su Supabase). Motivazioni negli
 ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 0015 (chat),
-0016 (chat come WhatsApp) e 0018 (utenti: blocco, permessi, limite di 100 foto).
+0016 (chat come WhatsApp), 0018 (utenti: blocco, permessi, limite di 100 foto) e 0019
+(sondaggi).
 
 ## Contenuto
 - `migrations/`: lo schema, versionato. Ogni modifica è un file nuovo, mai la modifica di
@@ -21,6 +22,10 @@ ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 
 - `migrations/20260925220000_users_block_permissions_photo_limit.sql` (ADR 0018): blocco dei
   giocatori, permessi per giocatore, limite di 100 foto; ridefinisce le funzioni che leggono o
   scrivono contenuti dei giocatori perché ignorino i bloccati e contino le foto.
+- `migrations/20260925230000_polls.sql` (ADR 0019): sondaggi. Tabelle `polls`, `poll_options`,
+  `poll_votes`, enum `poll_results`, interruttore `polls_enabled` (`features` e
+  `admin_set_feature` accettano `polls`); `svc_reset_evening` ora cancella anche i sondaggi,
+  perché quelli dell'admin non hanno un giocatore da cui sparire a cascata.
 - `functions/photos/`: la Edge Function, unico punto che tocca i file (foto e file della chat).
 - `config.toml`: configurazione dello stack locale.
 
@@ -36,15 +41,19 @@ ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 
 | `likes` | like su post e completamenti (`target_id`) |
 | `sessions` | token di giocatori e admin |
 | `admin_credentials` | nickname e nome vero dell'admin |
-| `evening_settings` | la parola segreta della serata e gli interruttori `actions_enabled`, `feed_enabled`, `chat_enabled`, `leaderboard_enabled` (accesi di base; sopravvivono a "Termina e ricomincia") |
+| `evening_settings` | la parola segreta della serata e gli interruttori `actions_enabled`, `feed_enabled`, `chat_enabled`, `leaderboard_enabled`, `polls_enabled` (accesi di base; sopravvivono a "Termina e ricomincia") |
 | `admin_access_log` | ogni accesso admin, con il dispositivo |
 | `conversations` | una conversazione per coppia di giocatori (`player_a < player_b`), con l'ultima lettura di ciascuno (per i non letti) e, per lato a/b, `cleared_*_at` (i messaggi fino a lì non si vedono più: "Svuota"), `removed_*` (fuori dall'elenco finché non arriva un messaggio nuovo: "Cancella chat"), `marked_*` ("da leggere", vale un non letto). Due persone per conversazione: due colonne bastano, una tabella a parte sarebbe troppo |
 | `messages` | messaggi: testo (≤ 1000 caratteri), foto o vocale (60 s nell'app, il database accetta fino a 65 s di tolleranza); il tipo (`kind`) decide quali colonne sono piene (vincolo `messages_shape`). `reply_to` (messaggio citato, della stessa conversazione), `edited_at` (solo testi), `forwarded`, `deleted_at`: "elimina per tutti" è una cancellazione morbida, la riga resta senza testo né file, così le risposte che la citano non si rompono |
 | `message_hidden` | messaggi eliminati "per me" (messaggio, giocatore) |
+| `polls` | sondaggi: domanda, autore (`creator_id`, `null` = l'admin), regole (`anonymous`, `multiple`, `results` di tipo `poll_results`: `always` / `after-vote` / `after-close`, `vote_change`, `close_when_all_voted`), `closes_at` (scadenza a tempo), `closed_at` (chiuso a mano o all'ultimo voto). **Un sondaggio a tempo non viene mai segnato chiuso:** lo è quando `closes_at` è passato; chi legge la tabella a mano deve ragionare come `poll_is_closed` |
+| `poll_options` | da 2 a 10 opzioni per sondaggio, ordinate da `position` |
+| `poll_votes` | una riga per opzione scelta (opzione, giocatore): un voto multiplo sono più righe |
 
 Le foto stanno nel bucket PRIVATO `photos` (`full/<id>.jpg`, `thumb/<id>.jpg`); i file della
 chat nel bucket PRIVATO `chat` (`photo/<id>.jpg`, `photo/<id>-thumb.jpg`, `voice/<id>.<ext>`).
-Conversazioni e messaggi spariscono con i giocatori (cascade) a "Termina e ricomincia".
+Conversazioni, messaggi e voti spariscono con i giocatori (cascade) a "Termina e ricomincia"; i
+sondaggi li cancella `svc_reset_evening` esplicitamente.
 
 ## API
 - RPC senza token: `check_secret_word`, `join_game`, `resume_session`.
@@ -62,6 +71,22 @@ Conversazioni e messaggi spariscono con i giocatori (cascade) a "Termina e ricom
   bloccare cancella anche le sessioni del giocatore, così il suo telefono alla lettura
   successiva riceve 403 ed esce), `admin_set_permission` (`polls` | `challenges`). Un token
   sconosciuto dà l'errore `28000` (HTTP 403).
+- Sondaggi (ADR 0019), con il token di giocatori e admin:
+  - `polls` (jsonb): i sondaggi visibili, aperti prima. Conteggi (`votes`) e votanti (`voters`)
+    escono dal database **solo quando le regole lo permettono** (`always`, sondaggio chiuso, o
+    `after-vote` dopo il proprio voto), altrimenti sono `null`: nasconderli solo nell'interfaccia
+    sarebbe finto, si leggerebbero dalla rete. L'admin vede sempre i conteggi, mai i nomi di un
+    sondaggio anonimo. Ogni sondaggio porta anche `myVotes`, `voterCount`, `canManage`,
+    `resultsVisible`.
+  - `create_poll` → `{status, pollId}`, `status` tra `ok`, `unauthorized`, `forbidden` (giocatore
+    senza `can_create_polls`), `rejected` (servono 2–10 opzioni non vuote e diverse, durata tra 1
+    e 1440 minuti), `disabled`.
+  - `vote_poll` (solo giocatori: l'admin non vota) → `ok`, `unauthorized`, `disabled`, `closed`,
+    `locked` (ha già votato e il cambio non è ammesso), `rejected`. Sostituisce i voti precedenti;
+    con `close_when_all_voted`, se hanno votato tutti i giocatori non bloccati scrive
+    `closed_at`: chi entra dopo non riapre il sondaggio.
+  - `close_poll` e `delete_poll` (autore o admin) → `ok`, `unauthorized`, `rejected`.
+  - I voti dei bloccati non contano e i sondaggi creati da loro non si vedono.
 - Blocco (ADR 0018): i contenuti di un bloccato si nascondono, non si cancellano, così
   "Sblocca" rimette tutto. `join_game` risponde `blocked` se il nickname **o il nome vero**
   coincide con quello di un bloccato (un nickname nuovo non basta per rientrare). `feed`,
@@ -73,7 +98,8 @@ Conversazioni e messaggi spariscono con i giocatori (cascade) a "Termina e ricom
   un'azione nuova: sostituire la foto non conta), `svc_create_post`, `svc_send_media` (foto) e
   `svc_forward_message` (una foto inoltrata a N chat vale N) rispondono `photo-limit`.
 - Con una funzione spenta il server rifiuta con `disabled`: `svc_create_post` con la bacheca
-  spenta, `open_conversation`, `send_message` e `svc_send_media` con la chat spenta.
+  spenta, `open_conversation`, `send_message` e `svc_send_media` con la chat spenta,
+  `create_poll` e `vote_poll` con i sondaggi spenti.
 - Edge Function `photos`: completamento con foto, post, foto profilo, link firmati, annulla,
   elimina foto / post, album, elimina azione, azzera serata (svuota anche il bucket `chat`);
   per la chat `chat-photo` e `chat-voice` (accettano `replyTo`), `chat-media` (link firmati
@@ -91,7 +117,9 @@ Conversazioni e messaggi spariscono con i giocatori (cascade) a "Termina e ricom
   `visible_messages` (ciò che un giocatore vede ancora: né svuotato né eliminato per lui),
   `valid_reply` (la risposta punta a un messaggio della stessa conversazione), `is_blocked`,
   `photos_of` (le foto esistenti di un giocatore) e `has_photo_room(giocatore, quante)` (la
-  costante 100 sta qui, speculare a `PHOTO_LIMIT` del dominio).
+  costante 100 sta qui, speculare a `PHOTO_LIMIT` del dominio). Per i sondaggi:
+  `polls_enabled()`, `poll_is_closed` (chiuso a mano, all'ultimo voto o scaduto),
+  `can_manage_poll` (admin o autore) e `poll_voters` (quanti hanno votato, bloccati esclusi).
 - Chi invia, modifica, elimina o inoltra un messaggio riceve nella risposta la `inbox_key` del
   destinatario, per avvisarlo (vedi sotto).
 
@@ -117,7 +145,7 @@ persone con cui ha una chat: chi guarda i canali pubblici non scopre chi scrive 
 
 ## Relazioni
 - Usato da: `web/src/infrastructure/supabase/` (`supabase-backend.ts`, `supabase-chat.ts`,
-  `photos-function.ts`), l'unico modulo che conosce queste tabelle e funzioni.
+  `supabase-polls.ts`, `photos-function.ts`), l'unico modulo che conosce queste tabelle e funzioni.
 - Attenzione: cancellare righe dalla dashboard lascia file orfani nei bucket; usare l'app.
 
 ## Comandi (da `web/`, serve Docker)

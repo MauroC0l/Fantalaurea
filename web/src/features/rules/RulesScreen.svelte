@@ -36,6 +36,7 @@
     { feature: 'feed', icon: 'home', title: 'Bacheca', text: 'Foto e imprese di tutti, con i like.' },
     { feature: 'chat', icon: 'chat', title: 'Chat', text: 'Messaggi privati, foto e vocali.' },
     { feature: 'leaderboard', icon: 'trophy', title: 'Classifica', text: 'Chi è in testa, e i profili degli altri.' },
+    { feature: 'polls', icon: 'poll', title: 'Sondaggi', text: 'Vota e guarda come va.' },
     { feature: null, icon: 'user', title: 'Profilo', text: 'La tua foto, la bio e le tue foto della serata.' },
   ];
 

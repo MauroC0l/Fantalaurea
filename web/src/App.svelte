@@ -11,6 +11,8 @@
   import EveningScreen from './features/admin/EveningScreen.svelte';
   import { AdminState } from './features/admin/admin-state.svelte';
   import UsersScreen from './features/admin/UsersScreen.svelte';
+  import PollsScreen from './features/polls/PollsScreen.svelte';
+  import { PollsState } from './features/polls/polls-state.svelte';
   import { UsersState } from './features/admin/users-state.svelte';
   import { AlbumState } from './features/admin/album-state.svelte';
   import FeedScreen from './features/feed/FeedScreen.svelte';
@@ -46,8 +48,8 @@
     | { kind: 'offline' }
     /** secretWord: null = not given yet; '' = the admin's way in, without it. */
     | { kind: 'anonymous'; secretWord: string | null }
-    | { kind: 'playing'; game: GameState; feed: FeedState; chatList: ChatListState; links: PhotoLinksCache }
-    | { kind: 'administering'; admin: AdminState; album: AlbumState; users: UsersState; links: PhotoLinksCache };
+    | { kind: 'playing'; game: GameState; feed: FeedState; chatList: ChatListState; polls: PollsState; links: PhotoLinksCache }
+    | { kind: 'administering'; admin: AdminState; album: AlbumState; users: UsersState; polls: PollsState; links: PhotoLinksCache };
 
   const deps = composeApp();
   const router = new PathRouter();
@@ -59,12 +61,14 @@
     { id: 'azioni', label: 'Azioni', icon: 'checklist', href: hrefTo({ name: 'azioni' }), feature: 'actions' },
     { id: 'classifica', label: 'Classifica', icon: 'trophy', href: hrefTo({ name: 'classifica' }), feature: 'leaderboard' },
     { id: 'chat', label: 'Chat', icon: 'chat', href: hrefTo({ name: 'chat' }), feature: 'chat' },
+    { id: 'sondaggi', label: 'Sondaggi', icon: 'poll', href: hrefTo({ name: 'sondaggi' }), feature: 'polls' },
     { id: 'profilo', label: 'Profilo', icon: 'user', href: hrefTo({ name: 'profilo' }), feature: null },
   ] as const;
 
   const ADMIN_TABS = [
     { id: 'admin', label: 'Azioni', icon: 'checklist', href: hrefTo({ name: 'admin' }) },
     { id: 'utenti', label: 'Utenti', icon: 'users', href: hrefTo({ name: 'utenti' }) },
+    { id: 'sondaggi', label: 'Sondaggi', icon: 'poll', href: hrefTo({ name: 'sondaggi' }) },
     { id: 'album', label: 'Album', icon: 'image', href: hrefTo({ name: 'album' }) },
     { id: 'serata', label: 'Serata', icon: 'key', href: hrefTo({ name: 'serata' }) },
   ] as const;
@@ -73,7 +77,7 @@
   type AdminTab = (typeof ADMIN_TABS)[number]['id'];
   type PlayerScreen = PlayerTab | 'giocatore' | 'regole' | 'conversazione';
 
-  const PLAYER_SCREENS: readonly string[] = ['bacheca', 'azioni', 'classifica', 'chat', 'profilo', 'giocatore', 'regole', 'conversazione'];
+  const PLAYER_SCREENS: readonly string[] = ['bacheca', 'azioni', 'classifica', 'chat', 'sondaggi', 'profilo', 'giocatore', 'regole', 'conversazione'];
 
   const features = $derived(app.kind === 'playing' ? app.game.features : ALL_FEATURES_ON);
 
@@ -83,6 +87,7 @@
     classifica: 'leaderboard',
     chat: 'chat',
     conversazione: 'chat',
+    sondaggi: 'polls',
   };
 
   /** The first tab still on: the profile is always there (ADR 0014). */
@@ -121,7 +126,7 @@
 
   const adminTab = $derived.by((): AdminTab => {
     const name = router.current?.name;
-    return name === 'album' || name === 'serata' || name === 'utenti' ? name : 'admin';
+    return name === 'album' || name === 'serata' || name === 'utenti' || name === 'sondaggi' ? name : 'admin';
   });
 
   const anonymousScreen = $derived.by(() => {
@@ -172,9 +177,16 @@
       const expired = () => signOut('Sessione admin scaduta: rientra');
       const admin = new AdminState(deps, session, expired);
       const users = new UsersState(deps, session, expired);
-      app = { kind: 'administering', admin, album: new AlbumState(deps, session), users, links: new PhotoLinksCache(deps.links, session, expired) };
+      app = {
+        kind: 'administering',
+        admin,
+        album: new AlbumState(deps, session),
+        users,
+        polls: new PollsState(deps, session, expired),
+        links: new PhotoLinksCache(deps.links, session, expired),
+      };
       void admin.start();
-      if (!['album', 'serata', 'utenti'].includes(router.current?.name ?? '')) router.go({ name: 'admin' }, { replace: true });
+      if (!['album', 'serata', 'utenti', 'sondaggi'].includes(router.current?.name ?? '')) router.go({ name: 'admin' }, { replace: true });
       return;
     }
     play(session);
@@ -185,7 +197,7 @@
     const game = new GameState(deps, session, { onSessionLost: sessionLost });
     const feed = new FeedState(deps, session, sessionLost);
     const chatList = new ChatListState(deps, session, sessionLost);
-    app = { kind: 'playing', game, feed, chatList, links };
+    app = { kind: 'playing', game, feed, chatList, polls: new PollsState(deps, session, sessionLost), links };
     void game.start();
     void feed.start();
     chatList.start();
@@ -278,6 +290,8 @@
     <div in:fade={{ duration: duration('base') }}>
       {#if adminTab === 'utenti'}
         <UsersScreen users={app.users} links={app.links} />
+      {:else if adminTab === 'sondaggi'}
+        <PollsScreen polls={app.polls} links={app.links} canCreate />
       {:else if adminTab === 'album'}
         <AlbumScreen album={app.album} onunauthorized={() => signOut('Sessione admin scaduta: rientra')} />
       {:else if adminTab === 'serata'}
@@ -306,6 +320,8 @@
         <ActionsScreen game={app.game} links={app.links} haptics={deps.haptics} />
       {:else if playerScreen === 'classifica'}
         <ParticipantsScreen game={app.game} links={app.links} />
+      {:else if playerScreen === 'sondaggi'}
+        <PollsScreen polls={app.polls} links={app.links} canCreate={app.game.permissions.polls} />
       {:else if playerScreen === 'chat'}
         <ChatListScreen list={app.chatList} links={app.links} haptics={deps.haptics} />
       {:else if playerScreen === 'conversazione' && conversation}

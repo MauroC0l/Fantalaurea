@@ -2,9 +2,11 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { SessionExpiredError, type PreparedPhoto } from '../../application/ports';
 import type { JoinRequest } from '../../domain/evening';
 import type { AdminSession, PlayerSession } from '../../domain/player';
+import { DEFAULT_POLL_RULES, type PollDraft } from '../../domain/poll';
 import { ChangeSignals } from './change-signals';
 import { SupabaseBackend } from './supabase-backend';
 import { SupabaseChat } from './supabase-chat';
+import { SupabasePolls } from './supabase-polls';
 import { createSupabaseClient } from './supabase-client';
 
 // Default values of every local Supabase CLI stack.
@@ -12,7 +14,9 @@ const LOCAL_URL = 'http://127.0.0.1:54321';
 const LOCAL_KEY = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
 
 const client = createSupabaseClient(LOCAL_URL, LOCAL_KEY);
-const backend = new SupabaseBackend(client, LOCAL_URL, new ChangeSignals(client, { notifyDebounceMs: 0 }));
+const signals = new ChangeSignals(client, { notifyDebounceMs: 0 });
+const backend = new SupabaseBackend(client, LOCAL_URL, signals);
+const polls = new SupabasePolls(client, signals);
 const chat = new SupabaseChat(client, LOCAL_URL);
 
 const photo = (): PreparedPhoto => ({
@@ -235,7 +239,7 @@ describe('features', () => {
 
   it('lets the admin switch features off, and the server enforces it', async () => {
     const alice = await asPlayer('Alice');
-    expect(await backend.features(alice)).toEqual({ actions: true, chat: true, feed: true, leaderboard: true });
+    expect(await backend.features(alice)).toEqual({ actions: true, chat: true, feed: true, leaderboard: true, polls: true });
     await backend.setFeature(admin, 'feed', false);
     expect((await backend.features(alice)).feed).toBe(false);
     expect(await backend.createPost(alice, photo(), 'no')).toEqual({ ok: false, error: 'disabled' });
@@ -285,6 +289,71 @@ describe('users', () => {
     await backend.deletePost(alice, profile!.posts[0].id);
     expect((await backend.createPost(alice, photo(), 'ora sì')).ok).toBe(true);
   }, 60_000);
+});
+
+describe('polls', () => {
+  const draft = (rules: Partial<PollDraft['rules']> = {}): PollDraft => ({
+    question: 'Miglior outfit?',
+    options: ['Giulia', 'Marco', 'Anna'],
+    rules: { ...DEFAULT_POLL_RULES, ...rules },
+    durationMinutes: null,
+  });
+
+  it('is created by the admin or by players allowed to', async () => {
+    const alice = await asPlayer('Alice');
+    expect(await polls.create(alice, draft())).toEqual({ ok: false, error: 'forbidden' });
+    await backend.setPermission(admin, alice.player.id, 'polls', true);
+    expect((await polls.create(alice, draft())).ok).toBe(true);
+    expect((await polls.create(admin, draft())).ok).toBe(true);
+    const mine = (await polls.list(alice)).find((p) => p.creator?.nickname === 'Alice');
+    expect(mine).toMatchObject({ canManage: true, voterCount: 0 });
+    expect((await polls.list(alice)).find((p) => p.creator === null)?.canManage).toBe(false);
+  });
+
+  it('hides results until you vote and shows who voted what only when not anonymous', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    await polls.create(admin, draft({ anonymous: false, results: 'after-vote' }));
+    const [poll] = await polls.list(alice);
+    expect(await polls.vote(alice, poll.id, [poll.options[0].id, poll.options[1].id])).toEqual({ ok: false, error: 'rejected' });
+    await polls.vote(alice, poll.id, [poll.options[0].id]);
+    const [beforeBob] = await polls.list(bob);
+    expect(beforeBob.resultsVisible).toBe(false);
+    expect(beforeBob.options[0].votes).toBeNull();
+    await polls.vote(bob, beforeBob.id, [beforeBob.options[0].id]);
+    const [afterBob] = await polls.list(bob);
+    expect(afterBob.options[0]).toMatchObject({ votes: 2, voters: [{ nickname: 'Alice' }, { nickname: 'Bob' }] });
+    expect((await polls.list(admin))[0].options[0].votes).toBe(2);
+  });
+
+  it('keeps the first vote when changes are off, and closes itself once everyone voted', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    await polls.create(admin, draft({ voteChange: false, closeWhenAllVoted: true }));
+    const [poll] = await polls.list(alice);
+    await polls.vote(alice, poll.id, [poll.options[0].id]);
+    expect(await polls.vote(alice, poll.id, [poll.options[1].id])).toEqual({ ok: false, error: 'locked' });
+    await polls.vote(bob, poll.id, [poll.options[1].id]);
+    expect((await polls.list(alice))[0].closed).toBe(true);
+    const carl = await asPlayer('Carl');
+    expect(await polls.vote(carl, poll.id, [poll.options[0].id])).toEqual({ ok: false, error: 'closed' });
+  });
+
+  it('is closed or deleted only by its creator or the admin, and follows the switch', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    await backend.setPermission(admin, alice.player.id, 'polls', true);
+    await polls.create(alice, draft());
+    const [poll] = await polls.list(bob);
+    expect(poll.canManage).toBe(false);
+    expect(await polls.close(bob, poll.id)).toEqual({ ok: false, error: 'rejected' });
+    expect(await polls.close(alice, poll.id)).toEqual({ ok: true, value: undefined });
+    await backend.setFeature(admin, 'polls', false);
+    expect(await polls.create(admin, draft())).toEqual({ ok: false, error: 'disabled' });
+    await backend.setFeature(admin, 'polls', true);
+    expect(await polls.remove(admin, poll.id)).toEqual({ ok: true, value: undefined });
+    expect(await polls.list(bob)).toEqual([]);
+  });
 });
 
 describe('chat', () => {

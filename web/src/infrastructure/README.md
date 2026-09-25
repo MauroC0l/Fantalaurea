@@ -66,8 +66,17 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
   - `markRead` non avvisa le schermate locali: chi segna come letto è la conversazione, che
     riceverebbe il proprio segnale e rileggerebbe all'infinito. La lista la aggiorna
     `ConversationState` tramite `onRead`.
+- `supabase/supabase-polls.ts`: `SupabasePolls(client, signals)` implementa `Polls` (ADR
+  0019) con le RPC `polls`, `create_poll`, `vote_poll`, `close_poll`, `delete_poll`.
+  - La risposta di `polls` diventa un `Poll` del dominio (date come `Date`, regole raccolte in
+    `PollRules`, conteggi convertiti in numeri); i conteggi e i votanti nascosti restano `null`,
+    come li manda il server.
+  - Dopo ogni scrittura riuscita annuncia `polls` con lo stesso `ChangeSignals` della partita:
+    un adattatore a parte e non altri metodi di `SupabaseBackend`, che è già grande, ma un solo
+    canale per telefono.
+  - Il codice `28000` nelle letture diventa `SessionExpiredError`, come nel backend.
 - `supabase/supabase-backend.db-test.ts`: test d'integrazione contro lo stack locale
-  (`npm run test:db`, ricrea il database locale).
+  (`npm run test:db`, ricrea il database locale), sondaggi compresi.
 - `browser/canvas-photo-processor.ts`: decodifica (anche HEIC su Safari), orientamento,
   JPEG. `original`: 2560 px + miniatura 720 px; `square`: ritaglio centrale 512 px +
   miniatura 160 px (valori in `app/compose.ts`).

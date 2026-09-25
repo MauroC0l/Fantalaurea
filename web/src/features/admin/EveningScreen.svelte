@@ -55,6 +55,7 @@
     { name: 'feed', label: 'Bacheca', description: 'Post, foto delle azioni e like visibili a tutti' },
     { name: 'chat', label: 'Chat', description: 'Messaggi privati, foto e vocali tra giocatori' },
     { name: 'leaderboard', label: 'Classifica', description: 'Chi è in testa. I punti restano comunque' },
+    { name: 'polls', label: 'Sondaggi', description: 'Li crei tu o chi abiliti in Utenti' },
   ];
 
   async function toggleFeature(feature: FeatureName, enabled: boolean) {

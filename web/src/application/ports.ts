@@ -5,6 +5,7 @@ import type { AccessLogEntry, JoinRequest } from '../domain/evening';
 import type { FeatureName, Features } from '../domain/features';
 import type { FeedItem, Liker } from '../domain/feed';
 import type { AdminSession, ManagedPlayer, Participant, Permission, Permissions, PlayerSession, Session } from '../domain/player';
+import type { Poll, PollDraft } from '../domain/poll';
 import type { Profile } from '../domain/profile';
 import type { Result } from '../domain/result';
 
@@ -219,6 +220,18 @@ export interface PhotoExporter {
   shareText(text: string): Promise<'shared' | 'cancelled' | 'unsupported'>;
   download(file: NamedFile): void;
   downloadZip(files: readonly NamedFile[], zipName: string): Promise<void>;
+}
+
+/** "forbidden": this player may not create polls; "closed": too late to vote; "locked": voted already, no changes. */
+export type PollFailure = FeatureFailure | 'forbidden' | 'closed' | 'locked';
+
+/** Polls of the evening (ADR 0019). Reads reject like GameBoard's. */
+export interface Polls {
+  list(session: Session): Promise<readonly Poll[]>;
+  create(session: Session, draft: PollDraft): Promise<Result<string, PollFailure>>;
+  vote(session: PlayerSession, pollId: string, optionIds: readonly string[]): Promise<Result<void, PollFailure>>;
+  close(session: Session, pollId: string): Promise<Result<void, WriteFailure>>;
+  remove(session: Session, pollId: string): Promise<Result<void, WriteFailure>>;
 }
 
 export interface Clipboard {
