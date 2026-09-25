@@ -21,7 +21,8 @@
     { icon: 'alert', title: 'Anche i malus', text: 'I malus li segni tu. Il gioco si basa sulla fiducia: niente furbate.' },
     { icon: 'crown', title: 'Il bonus comune', text: 'Vale per tutti: chi lo segna lo fa comparire come fatto per ogni giocatore.' },
     { icon: 'undo', title: 'Hai sbagliato?', text: 'Dalle Fatte puoi annullare un’azione: torna tra quelle da fare.' },
-    { icon: 'users', title: 'Guarda chi gioca', text: 'Nella sezione Partecipanti vedi chi c’è e quante azioni ha completato.' },
+    { icon: 'flame', title: 'Punti e difficoltà', text: 'Ogni azione vale dei punti (i malus li tolgono) e ha 1-3 fiamme di difficoltà: filtra quelle alla tua portata.' },
+    { icon: 'users', title: 'La classifica', text: 'Nella sezione Partecipanti vedi chi è in testa: vince chi fa più punti.' },
   ];
 </script>
 

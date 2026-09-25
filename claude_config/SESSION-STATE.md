@@ -1,6 +1,6 @@
 # Stato della sessione — Fantalaurea
 
-Ultimo aggiornamento: 2026-09-24
+Ultimo aggiornamento: 2026-09-25
 
 ## Obiettivo
 Web app "Fantalaurea" per le feste di laurea di un gruppo di circa 50 amici. Ogni festa è
@@ -24,6 +24,9 @@ Prima festa: **2026-10-02**.
 - 0008 foto: bucket privato + Edge Function `photos`; JPEG 2560 px / qualità 0,9 +
   miniatura 480 px; politica per azione `none` / `optional` / `required`.
 - 0009 eliminato `MemoryBackend`: si sviluppa sul Supabase locale (Docker).
+- 0010 punti visibili (classifica per punti) e difficoltà soft/medium/hard. FATTO e in
+  produzione il 2026-09-25. Le difficoltà delle 27 azioni le ha proposte Claude:
+  l'utente le rivede.
 - L'azione "Il gioiello di famiglia" (foto intima) ha la foto FACOLTATIVA: rischio legale
   (art. 612-ter) segnalato due volte, confermato dall'utente.
 - Politiche foto scelte dall'utente:
@@ -47,6 +50,21 @@ Prima festa: **2026-10-02**.
   - prova completa nel browser sul locale: foto obbligatoria, anteprima, invio, Fatte,
     elimina foto → annulla, modifica azione dall'admin vista in tempo reale dal giocatore,
     album, ZIP, visore, promemoria prima di azzerare.
+
+## In attesa di decisioni (richiesta del 2026-09-25, punti 1-5)
+L'utente ha chiesto:
+1. sovrascrivere il profilo se il nome reale esiste già;
+2. pagina profilo dalla classifica;
+3. foto profilo e bio di 500 caratteri;
+4. parola segreta per entrare nella serata, generata e modificabile dall'admin;
+5. bacheca stile Instagram con post e schede delle azioni.
+
+Claude ha segnalato due problemi bloccanti:
+- la parola segreta non protegge nulla se i dati restano leggibili senza token e se le
+  credenziali admin sono pubbliche nel repo;
+- in bacheca le foto intime ("Il gioiello di famiglia") verrebbero distribuite a tutti.
+
+Domande inviate in chat; nessun codice scritto per 1-5.
 
 ## Prossimi passi
 - L'utente rivede i titoli e prova con telefoni veri (iPhone + Android) entro il 2026-09-30,

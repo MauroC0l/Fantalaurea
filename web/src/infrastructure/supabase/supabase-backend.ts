@@ -30,6 +30,7 @@ interface ActionRow {
   kind: Action['kind'];
   points: number;
   photo_policy: Action['photoPolicy'];
+  difficulty: Action['difficulty'];
 }
 interface CompletionRow {
   action_id: string;
@@ -43,6 +44,7 @@ interface ParticipantRow {
   nickname: string;
   real_name: string;
   actions_done: number;
+  points: number;
 }
 type FunctionReply<T = unknown> = { status: 'ok' } & T;
 type FunctionFailure = { status: 'unauthorized' | 'rejected' | 'error' };
@@ -91,7 +93,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   async catalog(): Promise<readonly Action[]> {
     const { data, error } = await this.#client
       .from('actions')
-      .select('id, title, description, kind, points, photo_policy')
+      .select('id, title, description, kind, points, photo_policy, difficulty')
       .order('position');
     if (error) throw error;
     return (data as ActionRow[]).map(toAction);
@@ -114,6 +116,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     return (data as ParticipantRow[]).map((row) => ({
       player: { id: row.id, nickname: row.nickname, realName: row.real_name },
       actionsDone: Number(row.actions_done),
+      points: Number(row.points),
     }));
   }
 
@@ -270,6 +273,7 @@ function toAction(row: ActionRow): Action {
     kind: row.kind,
     points: row.points,
     photoPolicy: row.photo_policy,
+    difficulty: row.difficulty,
   };
 }
 
@@ -279,5 +283,7 @@ function draftArgs(draft: ActionDraft) {
     p_description: draft.description,
     p_kind: draft.kind,
     p_photo_policy: draft.photoPolicy,
+    p_points: draft.points,
+    p_difficulty: draft.difficulty,
   };
 }

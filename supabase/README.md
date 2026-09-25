@@ -14,7 +14,7 @@ in [ADR 0002](../docs/adr/0002-backend-supabase.md) e [ADR 0005](../docs/adr/000
 ## Tabelle
 | Tabella | Leggibile dai client | Contenuto |
 |---|---|---|
-| `actions` | sì | le azioni della serata: titolo, descrizione, tipo, politica foto, punti (non mostrati) |
+| `actions` | sì | le azioni della serata: titolo, descrizione, tipo, punti (negativi per i malus), difficoltà, politica foto |
 | `players` | sì | i giocatori; nickname unico senza distinguere maiuscole |
 | `player_completions` | sì | azioni fatte da ogni giocatore, con l'id dell'eventuale foto |
 | `shared_completions` | sì | azioni "per tutti" fatte (una riga per azione, con chi l'ha segnata) |

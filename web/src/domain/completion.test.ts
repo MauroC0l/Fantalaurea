@@ -9,6 +9,7 @@ const action = (photoPolicy: Action['photoPolicy']): Action => ({
   points: 0,
   kind: 'bonus',
   photoPolicy,
+  difficulty: 'medium',
 });
 
 describe('completion rules', () => {

@@ -19,13 +19,15 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
 | `Button` | `primary` / `ghost` / `danger`, taglia `regular` / `small`, stato `loading` |
 | `IconButton` | pulsante tondo con sola icona |
 | `PhotoPickerButton` | pulsante che apre fotocamera / galleria (input nativo nascosto) |
-| `TextField` | etichetta flottante, suggerimento, errore; `multiline` |
+| `TextField` | etichetta flottante, suggerimento, errore; `multiline`, `inputmode` |
 | `SegmentedControl` | scelta tra poche opzioni con indicatore che scorre |
 | `Disclosure` | tendina: riepilogo sempre visibile, contenuto che si apre animato |
 | `Dialog` | pannello dal basso con sfondo sfocato; Esc o tocco fuori per chiudere |
 | `Lightbox` | foto a schermo intero con didascalia e azioni |
 | `Thumbnail` | miniatura quadrata con caricamento animato |
 | `ProgressBar` | barra di avanzamento a gradiente |
+| `DifficultyMeter` | difficoltà come 1-3 fiamme colorate |
+| `PointsPill` | punti con segno, verde se positivi e rosso se negativi |
 | `TabBar` | barra di navigazione fluttuante |
 | `Surface` | pannello "vetro", evidenziabile nel colore del tono |
 | `Badge`, `Avatar`, `AnimatedNumber`, `Icon` | elementi minori |

@@ -3,7 +3,7 @@
   import { fly } from 'svelte/transition';
   import type { CompleteError } from '../../application/complete-action';
   import type { Haptics, WriteFailure } from '../../application/ports';
-  import type { Action, ActionKind } from '../../domain/action';
+  import type { Action, ActionKind, Difficulty } from '../../domain/action';
   import { effectOfDeletingPhoto } from '../../domain/completion';
   import Button from '../../ui/components/Button.svelte';
   import Dialog from '../../ui/components/Dialog.svelte';
@@ -19,6 +19,7 @@
   import { celebrations } from '../../ui/components/celebrations.svelte';
   import { toasts } from '../../ui/components/toasts.svelte';
   import { duration, easing, stagger } from '../../ui/theme/motion';
+  import { DIFFICULTY_LABELS } from '../labels';
   import type { GameState } from '../game/game-state.svelte';
   import ActionItem from './ActionItem.svelte';
   import CompletedItem from './CompletedItem.svelte';
@@ -55,11 +56,21 @@
     | { kind: 'delete-photo'; action: Action }
     | { kind: 'view-photo'; action: Action };
 
+  type DifficultyFilter = Difficulty | 'any';
+
+  const DIFFICULTIES: readonly { value: DifficultyFilter; label: string }[] = [
+    { value: 'any', label: 'Ogni livello' },
+    ...(Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map((value) => ({ value, label: DIFFICULTY_LABELS[value] })),
+  ];
+
   let filter = $state<Filter>('all');
+  let difficulty = $state<DifficultyFilter>('any');
   let dialog = $state<OpenDialog>({ kind: 'none' });
 
   const todo = $derived(
-    filter === 'done' ? [] : VISIBLE_KINDS[filter].flatMap((kind) => game.todo.filter((action) => action.kind === kind)),
+    filter === 'done' ? [] : VISIBLE_KINDS[filter].flatMap((kind) =>
+          game.todo.filter((action) => action.kind === kind && (difficulty === 'any' || action.difficulty === difficulty)),
+        ),
   );
 
   const MESSAGES: Record<Exclude<CompleteError, 'unauthorized'>, string> = {
@@ -104,6 +115,7 @@
 <Screen withTabBar>
   <ScreenHeader eyebrow="Ciao, {game.session.player.nickname}" title="Le tue azioni">
     <div class="progress">
+      <p class="score"><strong>{game.me?.points ?? 0}</strong> punti</p>
       <p><strong>{game.done.length}</strong> su {game.catalog.length} completate</p>
       <ProgressBar value={game.done.length} max={game.catalog.length} label="Azioni completate" />
     </div>
@@ -123,6 +135,9 @@
     </EmptyState>
   {:else}
     <SegmentedControl label="Filtra le azioni" options={FILTERS} bind:value={filter} />
+    {#if filter !== 'done'}
+      <SegmentedControl label="Filtra per difficoltà" options={DIFFICULTIES} bind:value={difficulty} />
+    {/if}
 
     {#if filter === 'done'}
       <p class="privacy"><Icon name="shield" size={16} /> Le tue foto le vedete solo tu e l'admin.</p>
@@ -245,6 +260,14 @@
   .progress {
     display: grid;
     gap: var(--space-2);
+  }
+
+  .score strong {
+    font-size: var(--text-xl);
+    background: var(--gradient-party);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
   }
 
   .progress strong {

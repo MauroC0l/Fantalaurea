@@ -27,13 +27,19 @@ describe('sameName', () => {
 });
 
 describe('rankParticipants', () => {
-  const participant = (nickname: string, actionsDone: number): Participant => ({
+  const participant = (nickname: string, points: number, actionsDone: number): Participant => ({
     player: { id: nickname, nickname, realName: nickname },
+    points,
     actionsDone,
   });
 
-  it('orders by actions done, then by nickname', () => {
-    const ranked = rankParticipants([participant('b', 1), participant('c', 3), participant('a', 1)]);
-    expect(ranked.map((p) => p.player.nickname)).toEqual(['c', 'a', 'b']);
+  it('orders by points, then actions done, then nickname', () => {
+    const ranked = rankParticipants([
+      participant('b', 10, 1),
+      participant('d', 10, 3),
+      participant('c', 30, 1),
+      participant('a', 10, 1),
+    ]);
+    expect(ranked.map((p) => p.player.nickname)).toEqual(['c', 'd', 'a', 'b']);
   });
 });

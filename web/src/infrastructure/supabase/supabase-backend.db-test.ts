@@ -46,8 +46,10 @@ describe('completions', () => {
     await backend.complete(bob, 'common-vomito');
 
     expect(await doneIds(alice)).toEqual(['bonus-shottino', 'common-vomito']);
-    const done = Object.fromEntries((await backend.participants()).map((p) => [p.player.nickname, p.actionsDone]));
-    expect(done).toEqual({ Alice: 2, Bob: 1 });
+    const done = Object.fromEntries(
+      (await backend.participants()).map((p) => [p.player.nickname, [p.actionsDone, p.points]]),
+    );
+    expect(done).toEqual({ Alice: [2, 102], Bob: [1, 100] });
   });
 
   it('requires a photo where the admin asked for one', async () => {
@@ -118,10 +120,17 @@ describe('photos', () => {
 
 describe('admin', () => {
   it('adds, edits and removes actions', async () => {
-    const draft = { title: 'Nuova', description: 'Una azione nuova', kind: 'bonus', photoPolicy: 'optional' } as const;
+    const draft = {
+      title: 'Nuova',
+      description: 'Una azione nuova',
+      kind: 'bonus',
+      photoPolicy: 'optional',
+      difficulty: 'hard',
+      points: 25,
+    } as const;
     const added = await backend.addAction(admin, draft);
     if (!added.ok) throw new Error('add');
-    expect(added.value).toMatchObject({ ...draft, points: 0 });
+    expect(added.value).toMatchObject(draft);
 
     expect(await backend.updateAction(admin, added.value.id, { ...draft, title: 'Rinominata' })).toEqual({
       ok: true,
@@ -135,14 +144,15 @@ describe('admin', () => {
     const alice = await asPlayer('Alice');
     await backend.complete(alice, 'bonus-shottino');
     const shottino = (await backend.catalog()).find((a) => a.id === 'bonus-shottino')!;
-    expect(await backend.updateAction(admin, shottino.id, { ...shottino, kind: 'common' })).toEqual({
+    const asDraft = { ...shottino, points: Math.abs(shottino.points) };
+    expect(await backend.updateAction(admin, shottino.id, { ...asDraft, kind: 'common' })).toEqual({
       ok: false,
       error: 'kind-locked',
     });
-    expect(await backend.updateAction(admin, shottino.id, { ...shottino, kind: 'malus' })).toEqual({
+    expect(await backend.updateAction(admin, shottino.id, { ...asDraft, kind: 'malus' })).toEqual({
       ok: true,
       value: undefined,
     });
-    await backend.updateAction(admin, shottino.id, { ...shottino });
+    expect((await backend.catalog()).find((a) => a.id === 'bonus-shottino')?.points).toBe(-2);
   });
 });

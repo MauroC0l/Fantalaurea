@@ -7,17 +7,19 @@
   import type { Result } from '../../domain/result';
   import Badge from '../../ui/components/Badge.svelte';
   import Button from '../../ui/components/Button.svelte';
+  import DifficultyMeter from '../../ui/components/DifficultyMeter.svelte';
   import Dialog from '../../ui/components/Dialog.svelte';
   import EmptyState from '../../ui/components/EmptyState.svelte';
   import Icon from '../../ui/components/Icon.svelte';
   import IconButton from '../../ui/components/IconButton.svelte';
   import Loader from '../../ui/components/Loader.svelte';
+  import PointsPill from '../../ui/components/PointsPill.svelte';
   import Screen from '../../ui/components/Screen.svelte';
   import ScreenHeader from '../../ui/components/ScreenHeader.svelte';
   import Surface from '../../ui/components/Surface.svelte';
   import { toasts } from '../../ui/components/toasts.svelte';
   import { duration, easing } from '../../ui/theme/motion';
-  import { KIND_LABELS, PHOTO_POLICY_LABELS } from '../labels';
+  import { DIFFICULTY_LABELS, DIFFICULTY_LEVELS, KIND_LABELS, PHOTO_POLICY_LABELS } from '../labels';
   import ActionEditorDialog from './ActionEditorDialog.svelte';
   import type { AdminState } from './admin-state.svelte';
 
@@ -102,9 +104,13 @@
                 <div class="row">
                   <button class="edit" onclick={() => (dialog = { kind: 'edit', action })}>
                     <span class="title">{action.title}</span>
-                    {#if action.photoPolicy !== 'none'}
-                      <span class="photo"><Icon name="camera" size={14} /> {PHOTO_POLICY_LABELS[action.photoPolicy]}</span>
-                    {/if}
+                    <span class="details">
+                      <PointsPill points={action.points} />
+                      <DifficultyMeter level={DIFFICULTY_LEVELS[action.difficulty]} label={DIFFICULTY_LABELS[action.difficulty]} />
+                      {#if action.photoPolicy !== 'none'}
+                        <span class="photo"><Icon name="camera" size={14} /> {PHOTO_POLICY_LABELS[action.photoPolicy]}</span>
+                      {/if}
+                    </span>
                   </button>
                   <IconButton icon="pencil" label="Modifica: {action.title}" onclick={() => (dialog = { kind: 'edit', action })} />
                   <IconButton
@@ -246,6 +252,13 @@
   .title {
     font-weight: var(--weight-black);
     overflow-wrap: anywhere;
+  }
+
+  .details {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .photo {

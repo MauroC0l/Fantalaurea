@@ -19,7 +19,7 @@
 </script>
 
 <Screen withTabBar>
-  <ScreenHeader eyebrow="Partecipanti" title="Chi gioca stasera">
+  <ScreenHeader eyebrow="Classifica" title="Chi gioca stasera">
     <p>{count === 1 ? '1 persona in gioco' : `${count} persone in gioco`}</p>
   </ScreenHeader>
 
@@ -45,8 +45,8 @@
                 <p class="real-name">{participant.player.realName}</p>
               </div>
               <p class="done">
-                <span class="done-number"><AnimatedNumber value={participant.actionsDone} /></span>
-                <span class="done-label">azioni</span>
+                <span class="done-number"><AnimatedNumber value={participant.points} /></span>
+                <span class="done-label">punti · {participant.actionsDone} {participant.actionsDone === 1 ? 'azione' : 'azioni'}</span>
               </p>
             </div>
           </Surface>

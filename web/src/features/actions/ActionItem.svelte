@@ -2,10 +2,12 @@
   import type { Action } from '../../domain/action';
   import Badge from '../../ui/components/Badge.svelte';
   import Button from '../../ui/components/Button.svelte';
+  import DifficultyMeter from '../../ui/components/DifficultyMeter.svelte';
   import Disclosure from '../../ui/components/Disclosure.svelte';
   import Icon from '../../ui/components/Icon.svelte';
   import PhotoPickerButton from '../../ui/components/PhotoPickerButton.svelte';
-  import { KIND_LABELS } from '../labels';
+  import PointsPill from '../../ui/components/PointsPill.svelte';
+  import { DIFFICULTY_LABELS, DIFFICULTY_LEVELS, KIND_LABELS } from '../labels';
 
   interface Props {
     action: Action;
@@ -21,17 +23,22 @@
   {#snippet summary()}
     <span class="summary">
       <span class="dot" data-tone={action.kind} aria-hidden="true"></span>
-      <span class="title">{action.title}</span>
+      <span class="heading">
+        <span class="title">{action.title}</span>
+        <DifficultyMeter level={DIFFICULTY_LEVELS[action.difficulty]} label={DIFFICULTY_LABELS[action.difficulty]} />
+      </span>
       {#if action.photoPolicy !== 'none'}
         <span class="camera" class:required={action.photoPolicy === 'required'} title="Foto">
           <Icon name="camera" size={18} />
         </span>
       {/if}
+      <PointsPill points={action.points} />
     </span>
   {/snippet}
 
   <div class="meta">
     <Badge tone={action.kind}>{KIND_LABELS[action.kind]}</Badge>
+    <Badge tone="neutral">{DIFFICULTY_LABELS[action.difficulty]}</Badge>
     {#if action.photoPolicy === 'required'}
       <Badge tone="neutral">Foto obbligatoria</Badge>
     {:else if action.photoPolicy === 'optional'}
@@ -89,9 +96,14 @@
     --tone: var(--color-common);
   }
 
-  .title {
+  .heading {
     flex: 1;
+    display: grid;
+    gap: 2px;
     min-width: 0;
+  }
+
+  .title {
     font-weight: var(--weight-black);
     overflow-wrap: anywhere;
   }

@@ -5,6 +5,7 @@
   import Button from '../../ui/components/Button.svelte';
   import Icon from '../../ui/components/Icon.svelte';
   import PhotoPickerButton from '../../ui/components/PhotoPickerButton.svelte';
+  import PointsPill from '../../ui/components/PointsPill.svelte';
   import Surface from '../../ui/components/Surface.svelte';
   import Thumbnail from '../../ui/components/Thumbnail.svelte';
   import { formatTime } from '../labels';
@@ -37,6 +38,7 @@
           {mine ? `Fatta alle ${when}` : `Segnata da ${completion.by.nickname} alle ${when}`}
         </p>
       </div>
+      <PointsPill points={action.points} />
       {#if photo}
         <span class="thumb">
           <Thumbnail src={photo.thumbnailUrl} alt="La tua foto per {action.title}" onclick={onviewphoto} />

@@ -10,6 +10,7 @@ export interface Player {
 export interface Participant {
   readonly player: Player;
   readonly actionsDone: number;
+  readonly points: number;
 }
 
 export interface PlayerSession {
@@ -63,9 +64,12 @@ export function validateIdentity(raw: Identity): Result<Identity, readonly Ident
   return errors.length === 0 ? ok(identity) : err(errors);
 }
 
+/** Most points first, then most actions, then alphabetical. */
 export function rankParticipants(participants: readonly Participant[]): Participant[] {
   return [...participants].sort(
     (a, b) =>
-      b.actionsDone - a.actionsDone || a.player.nickname.localeCompare(b.player.nickname, 'it'),
+      b.points - a.points ||
+      b.actionsDone - a.actionsDone ||
+      a.player.nickname.localeCompare(b.player.nickname, 'it'),
   );
 }

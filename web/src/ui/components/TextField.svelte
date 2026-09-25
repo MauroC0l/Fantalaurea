@@ -13,6 +13,7 @@
     multiline?: boolean;
     autocomplete?: HTMLInputAttributes['autocomplete'];
     autocapitalize?: HTMLInputAttributes['autocapitalize'];
+    inputmode?: HTMLInputAttributes['inputmode'];
   }
 
   let {
@@ -25,6 +26,7 @@
     multiline = false,
     autocomplete = 'off',
     autocapitalize = 'sentences',
+    inputmode,
   }: Props = $props();
 
   const id = $derived(`field-${name}`);
@@ -54,6 +56,7 @@
         {maxlength}
         {autocomplete}
         {autocapitalize}
+        {inputmode}
         bind:value
         placeholder=" "
         spellcheck="false"

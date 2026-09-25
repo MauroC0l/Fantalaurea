@@ -31,6 +31,7 @@ export class GameState {
   ownPhotos = $state.raw<ReadonlyMap<string, OwnPhoto>>(new Map());
   busy = $state.raw<ReadonlySet<string>>(new Set());
 
+  readonly me = $derived(this.participants.find((p) => p.player.id === this.session.player.id));
   readonly todo = $derived(this.catalog.filter((action) => !this.completions.has(action.id)));
   readonly done = $derived(
     this.catalog

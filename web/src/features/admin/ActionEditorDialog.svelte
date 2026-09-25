@@ -2,10 +2,13 @@
   import type { ActionTarget, SaveActionError } from '../../application/save-action';
   import {
     ACTION_TEXT_LIMITS,
+    MAX_POINTS,
+    pointsMagnitude,
     type Action,
     type ActionDraft,
     type ActionKind,
     type ActionTextField,
+    type Difficulty,
     type PhotoPolicy,
   } from '../../domain/action';
   import type { Result } from '../../domain/result';
@@ -13,7 +16,7 @@
   import Dialog from '../../ui/components/Dialog.svelte';
   import SegmentedControl from '../../ui/components/SegmentedControl.svelte';
   import TextField from '../../ui/components/TextField.svelte';
-  import { KIND_LABELS, PHOTO_POLICY_LABELS } from '../labels';
+  import { DIFFICULTY_LABELS, KIND_LABELS, PHOTO_POLICY_LABELS } from '../labels';
 
   interface Props {
     /** null = closed; 'new' = create; an action = edit it. */
@@ -31,11 +34,18 @@
     label: PHOTO_POLICY_LABELS[value],
   }));
 
+  const DIFFICULTIES = (Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map((value) => ({
+    value,
+    label: DIFFICULTY_LABELS[value],
+  }));
+
   let title = $state('');
   let description = $state('');
   let kind = $state<ActionKind>('bonus');
   let photoPolicy = $state<PhotoPolicy>('none');
-  let errors = $state<Partial<Record<ActionTextField | 'kind', string>>>({});
+  let difficulty = $state<Difficulty>('medium');
+  let points = $state('');
+  let errors = $state<Partial<Record<ActionTextField | 'kind' | 'points', string>>>({});
   let saving = $state(false);
 
   $effect(() => {
@@ -44,6 +54,8 @@
     description = source?.description ?? '';
     kind = source?.kind ?? 'bonus';
     photoPolicy = source?.photoPolicy ?? 'none';
+    difficulty = source?.difficulty ?? 'medium';
+    points = source ? String(pointsMagnitude(source)) : '10';
     errors = {};
   });
 
@@ -53,9 +65,10 @@
     }
     if (error.kind !== 'invalid') return null;
     return Object.fromEntries(
-      error.errors.map(({ field, reason }) => {
-        const { min, max } = ACTION_TEXT_LIMITS[field];
-        return [field, reason === 'too-short' ? `Almeno ${min} caratteri` : `Massimo ${max} caratteri`];
+      error.errors.map((error) => {
+        if (error.field === 'points') return ['points', `Un numero intero da 0 a ${MAX_POINTS}`];
+        const { min, max } = ACTION_TEXT_LIMITS[error.field];
+        return [error.field, error.reason === 'too-short' ? `Almeno ${min} caratteri` : `Massimo ${max} caratteri`];
       }),
     );
   }
@@ -65,7 +78,8 @@
     saving = true;
     errors = {};
     const target: ActionTarget = editing === 'new' ? { kind: 'new' } : { kind: 'existing', id: editing.id };
-    const result = await onsave(target, { title, description, kind, photoPolicy });
+    const draft = { title, description, kind, photoPolicy, difficulty, points: Number(points.trim() || NaN) };
+    const result = await onsave(target, draft);
     saving = false;
     if (result.ok) return onclose();
     const fieldErrors = describe(result.error);
@@ -99,6 +113,19 @@
     <p class="label">Tipo</p>
     <SegmentedControl label="Tipo di azione" options={KINDS} bind:value={kind} />
     {#if errors.kind}<p class="error">{errors.kind}</p>{/if}
+  </div>
+  <TextField
+    name="action-points"
+    label="Punti"
+    inputmode="numeric"
+    maxlength={4}
+    hint={kind === 'malus' ? 'Per un malus vengono tolti a chi lo segna' : kind === 'common' ? 'Li ricevono tutti i giocatori' : 'Li riceve chi completa l’azione'}
+    error={errors.points}
+    bind:value={points}
+  />
+  <div class="field">
+    <p class="label">Difficoltà</p>
+    <SegmentedControl label="Difficoltà dell'azione" options={DIFFICULTIES} bind:value={difficulty} />
   </div>
   <div class="field">
     <p class="label">Foto</p>
