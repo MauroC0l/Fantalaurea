@@ -10,6 +10,7 @@ export type Route =
   | { readonly name: 'chat' }
   | { readonly name: 'conversazione'; readonly id: string }
   | { readonly name: 'admin' }
+  | { readonly name: 'utenti' }
   | { readonly name: 'album' }
   | { readonly name: 'serata' };
 
@@ -25,6 +26,7 @@ export const SIMPLE_ROUTES: readonly RouteName[] = [
   'profilo',
   'chat',
   'admin',
+  'utenti',
   'album',
   'serata',
 ];

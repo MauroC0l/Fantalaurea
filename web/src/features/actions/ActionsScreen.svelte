@@ -18,7 +18,7 @@
   import { celebrations } from '../../ui/components/celebrations.svelte';
   import { toasts } from '../../ui/components/toasts.svelte';
   import { duration, easing, stagger } from '../../ui/theme/motion';
-  import { DIFFICULTY_LABELS } from '../labels';
+  import { DIFFICULTY_LABELS, PHOTO_LIMIT_MESSAGE } from '../labels';
   import type { GameState } from '../game/game-state.svelte';
   import type { PhotoLinksCache } from '../photos/photo-links.svelte';
   import ActionItem from './ActionItem.svelte';
@@ -77,6 +77,7 @@
     rejected: 'Operazione non riuscita: riprova',
     'photo-required': 'Per questa azione serve una foto',
     'unreadable-photo': 'Non riesco a leggere questa foto: provane un’altra',
+    'photo-limit': PHOTO_LIMIT_MESSAGE,
   };
 
   function report(error: CompleteError | WriteFailure) {

@@ -5,6 +5,7 @@ import {
   type Chat,
   type ChatMediaLinks,
   type FeatureFailure,
+  type PhotoLimitFailure,
   type PhotoProcessor,
   type WriteFailure,
 } from '../../application/ports';
@@ -22,7 +23,7 @@ import { err, type Result } from '../../domain/result';
 import type { LoadStatus } from '../game/game-state.svelte';
 import { TypingTracker } from './typing-tracker.svelte';
 
-export type SendError = FeatureFailure | 'empty' | 'unreadable-photo';
+export type SendError = FeatureFailure | PhotoLimitFailure | 'empty' | 'unreadable-photo';
 
 /** What the composer is doing: a new message, an answer to one, or a correction of one of mine. */
 export type ComposerMode =
@@ -193,7 +194,7 @@ export class ConversationState {
     return result;
   }
 
-  forward(message: ChatMessage, conversationIds: readonly string[]): Promise<Result<void, FeatureFailure>> {
+  forward(message: ChatMessage, conversationIds: readonly string[]): Promise<Result<void, FeatureFailure | PhotoLimitFailure>> {
     return this.#chat.forward(this.session, message.id, conversationIds);
   }
 

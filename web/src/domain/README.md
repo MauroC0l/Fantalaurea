@@ -34,11 +34,18 @@ Tipi e regole del gioco, in funzioni pure: niente rete, niente browser, niente S
   `ALL_FEATURES_ON` (il valore prima della prima lettura).
 - `feed.ts`: `FeedItem` = `PostItem` | `CompletionItem`, `LikeSummary`, `Liker`, `mergeFeed`
   (più recenti prima, la copia più fresca vince), `withLike`, `isValidCaption` (300 caratteri).
-- `profile.ts`: `Profile` con completamenti e post, `photosOf` (tutte le foto di un giocatore),
+- `profile.ts`: `Profile` con completamenti, post e `photoCount` (le foto usate, solo sul
+  proprio profilo, altrimenti `null`), `PHOTO_LIMIT` = 100 (foto per giocatore tra azioni, post
+  e chat, esclusa la foto profilo; ADR 0018), `photosOf` (tutte le foto di un giocatore),
   `isValidBio` (500 caratteri).
 - `player.ts`: `Player`, `Participant` (con foto profilo, azioni, punti), `Session` =
   `PlayerSession` (con `inboxKey`, la chiave segreta del canale della chat) | `AdminSession`,
   `IDENTITY_LIMITS` (nickname 2–20, nome vero 2–40), `validateIdentity`, `sameName`, `rankParticipants` (punti, poi azioni, poi nickname).
+  Per la schermata admin "Utenti" (ADR 0018): `Permission` (`polls` | `challenges`),
+  `Permissions`, `NO_PERMISSIONS` (il valore prima della prima lettura), `ManagedPlayer` (il
+  giocatore visto dall'admin: bloccato o no, permessi, foto usate, ora di ingresso),
+  `matchesSearch` (per nickname o nome vero, senza distinguere maiuscole e accenti: "gia"
+  trova "Giàcomo").
 - `text.ts`: `normalizeText`. `result.ts`: `Result<T, E>` con `ok` / `err`.
 
 ## Relazioni

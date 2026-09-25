@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rankParticipants, sameName, validateIdentity, type Participant } from './player';
+import { matchesSearch, rankParticipants, sameName, validateIdentity, type Participant } from './player';
 
 describe('validateIdentity', () => {
   it('normalizes spacing', () => {
@@ -42,5 +42,15 @@ describe('rankParticipants', () => {
       participant('a', 10, 1),
     ]);
     expect(ranked.map((p) => p.player.nickname)).toEqual(['c', 'd', 'a', 'b']);
+  });
+});
+
+describe('matchesSearch', () => {
+  it('finds by nickname or real name, ignoring case and accents', () => {
+    const player = { nickname: 'Er Brindisi', realName: 'Niccolò Rossi' };
+    expect(matchesSearch(player, 'brind')).toBe(true);
+    expect(matchesSearch(player, 'NICCOLO')).toBe(true);
+    expect(matchesSearch(player, '  ')).toBe(true);
+    expect(matchesSearch(player, 'bianchi')).toBe(false);
   });
 });

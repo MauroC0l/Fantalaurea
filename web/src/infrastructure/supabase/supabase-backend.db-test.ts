@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { SessionExpiredError, type PreparedPhoto } from '../../application/ports';
 import type { JoinRequest } from '../../domain/evening';
 import type { AdminSession, PlayerSession } from '../../domain/player';
+import { ChangeSignals } from './change-signals';
 import { SupabaseBackend } from './supabase-backend';
 import { SupabaseChat } from './supabase-chat';
 import { createSupabaseClient } from './supabase-client';
@@ -11,7 +12,7 @@ const LOCAL_URL = 'http://127.0.0.1:54321';
 const LOCAL_KEY = 'sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH';
 
 const client = createSupabaseClient(LOCAL_URL, LOCAL_KEY);
-const backend = new SupabaseBackend(client, LOCAL_URL, { notifyDebounceMs: 0 });
+const backend = new SupabaseBackend(client, LOCAL_URL, new ChangeSignals(client, { notifyDebounceMs: 0 }));
 const chat = new SupabaseChat(client, LOCAL_URL);
 
 const photo = (): PreparedPhoto => ({
@@ -240,6 +241,50 @@ describe('features', () => {
     expect(await backend.createPost(alice, photo(), 'no')).toEqual({ ok: false, error: 'disabled' });
     await backend.setFeature(admin, 'feed', true);
   });
+});
+
+describe('users', () => {
+  it('blocks a player: out at once, cannot come back, content hidden until unblocked', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    await backend.createPost(alice, photo(), 'ciao');
+    expect(await backend.feed(bob, null)).toHaveLength(1);
+
+    expect(await backend.setBlocked(admin, alice.player.id, true)).toEqual({ ok: true, value: undefined });
+    await expect(backend.participants(alice)).rejects.toBeInstanceOf(SessionExpiredError);
+    expect(await backend.join(request('Alice'))).toEqual({ ok: false, error: { kind: 'blocked' } });
+    expect(await backend.join(request('Alice2', 'Alice Real'))).toEqual({ ok: false, error: { kind: 'blocked' } });
+    expect(await backend.feed(bob, null)).toEqual([]);
+    expect((await backend.participants(bob)).map((p) => p.player.nickname)).toEqual(['Bob']);
+    expect(await backend.profile(bob, alice.player.id)).toBeNull();
+    expect(await chat.open(bob, alice.player.id)).toEqual({ ok: false, error: 'rejected' });
+    const managed = await backend.players(admin);
+    expect(managed.ok && managed.value.find((p) => p.nickname === 'Alice')?.blocked).toBe(true);
+
+    await backend.setBlocked(admin, alice.player.id, false);
+    expect((await backend.join(request('Alice'))).ok).toBe(true);
+    expect(await backend.feed(bob, null)).toHaveLength(1);
+  });
+
+  it('lets the admin allow single players to create polls and challenges', async () => {
+    const alice = await asPlayer('Alice');
+    expect(await backend.permissions(alice)).toEqual({ polls: false, challenges: false });
+    expect(await backend.permissions(admin)).toEqual({ polls: true, challenges: true });
+    await backend.setPermission(admin, alice.player.id, 'polls', true);
+    expect(await backend.permissions(alice)).toEqual({ polls: true, challenges: false });
+  });
+
+  it('allows 100 photos each; deleting one makes room', async () => {
+    const alice = await asPlayer('Alice');
+    for (let batch = 0; batch < 10; batch++) {
+      await Promise.all(Array.from({ length: 10 }, () => backend.createPost(alice, photo(), '')));
+    }
+    expect(await backend.createPost(alice, photo(), 'una di troppo')).toEqual({ ok: false, error: 'photo-limit' });
+    const profile = await backend.profile(alice, alice.player.id);
+    expect(profile?.photoCount).toBe(100);
+    await backend.deletePost(alice, profile!.posts[0].id);
+    expect((await backend.createPost(alice, photo(), 'ora sì')).ok).toBe(true);
+  }, 60_000);
 });
 
 describe('chat', () => {

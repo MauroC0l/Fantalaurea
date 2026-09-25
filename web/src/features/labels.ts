@@ -1,4 +1,7 @@
 import type { ActionKind, Difficulty, PhotoPolicy } from '../domain/action';
+import { PHOTO_LIMIT } from '../domain/profile';
+
+export const PHOTO_LIMIT_MESSAGE = `Hai già ${PHOTO_LIMIT} foto: cancellane qualcuna dal tuo profilo per caricarne altre`;
 
 export const KIND_LABELS: Readonly<Record<ActionKind, string>> = {
   bonus: 'Bonus',

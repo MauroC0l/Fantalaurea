@@ -30,6 +30,33 @@ export interface AdminSession {
 
 export type Session = PlayerSession | AdminSession;
 
+/** What the admin lets a player create (ADR 0018); the admin can do everything. */
+export type Permission = 'polls' | 'challenges';
+export type Permissions = Readonly<Record<Permission, boolean>>;
+export const NO_PERMISSIONS: Permissions = { polls: false, challenges: false };
+
+/** Search by nickname or real name, ignoring case and accents: "gia" finds "Giàcomo". */
+export function matchesSearch(player: { readonly nickname: string; readonly realName: string }, query: string): boolean {
+  const needle = fold(query);
+  return needle === '' || fold(player.nickname).includes(needle) || fold(player.realName).includes(needle);
+}
+
+function fold(text: string): string {
+  return normalizeText(text).normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('it');
+}
+
+/** A player as the admin sees them in "Utenti". */
+export interface ManagedPlayer {
+  readonly id: string;
+  readonly nickname: string;
+  readonly realName: string;
+  readonly avatarId: string | null;
+  readonly blocked: boolean;
+  readonly permissions: Permissions;
+  readonly photos: number;
+  readonly joinedAt: Date;
+}
+
 export interface Identity {
   readonly nickname: string;
   readonly realName: string;

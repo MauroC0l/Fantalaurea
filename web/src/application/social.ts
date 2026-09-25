@@ -2,9 +2,9 @@ import { isValidCaption } from '../domain/feed';
 import type { PlayerSession } from '../domain/player';
 import { isValidBio } from '../domain/profile';
 import { err, type Result } from '../domain/result';
-import type { FeatureFailure, PhotoProcessor, PlayerMoves, WriteFailure } from './ports';
+import type { FeatureFailure, PhotoLimitFailure, PhotoProcessor, PlayerMoves, WriteFailure } from './ports';
 
-export type PublishError = FeatureFailure | 'caption-too-long' | 'unreadable-photo';
+export type PublishError = FeatureFailure | PhotoLimitFailure | 'caption-too-long' | 'unreadable-photo';
 
 export async function publishPost(
   deps: { moves: PlayerMoves; photos: PhotoProcessor },

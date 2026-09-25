@@ -57,8 +57,14 @@
       case 'rejected':
         toasts.show('Non è stato possibile: riprova', 'error');
         return;
+      case 'blocked':
+        toasts.show('L’admin ti ha tolto dalla serata', 'error');
+        return;
       case 'unavailable':
         toasts.show('Connessione assente: riprova tra un attimo', 'error');
+        return;
+      default:
+        error satisfies never;
     }
   }
 

@@ -11,7 +11,7 @@ di vita della sessione.
 - `router.svelte.ts`: `PathRouter` (ADR 0017), che trasforma il percorso in un `Route`
   (definito in `features/routes.ts`, sotto `BASE_PATH`): `regole`, `parola`, `iscrizione`,
   `bacheca`, `azioni`, `classifica`, `profilo`, `giocatore/<id>`, `chat`,
-  `conversazione/<id>`, `admin`, `album`, `serata`.
+  `conversazione/<id>`, `admin`, `utenti`, `album`, `serata`.
   - Usa la History API e intercetta i clic sui link interni (niente ricarica della pagina).
   - `go(route, { replace })`: `replace` si usa per i reindirizzamenti, così "indietro" non
     torna a una pagina che reindirizza di nuovo.
@@ -29,6 +29,10 @@ di vita della sessione.
   messaggio" dal profilo apre (o crea) la conversazione e ci naviga. La conversazione riceve
   anche la lista delle chat (per l'inoltro) e gli appunti ("Copia testo"); la lista riceve la
   vibrazione (pressione lunga). Una sessione scaduta riporta alle regole con un avviso.
+  `administering` tiene pannello, album, utenti (`UsersState`) e una propria cache dei link
+  foto (`PhotoLinksCache`, per le foto profilo in Utenti); le schede admin sono Azioni /
+  Utenti / Album / Serata, e chi entra come admin su una rotta diversa da queste finisce su
+  Azioni.
 
 ## Relazioni
 - Dipende da: tutti gli altri moduli.

@@ -1,9 +1,9 @@
 import type { Action } from '../domain/action';
 import type { PlayerSession } from '../domain/player';
 import { err, type Result } from '../domain/result';
-import type { CompleteFailure, PhotoProcessor, PlayerMoves } from './ports';
+import type { CompleteFailure, PhotoLimitFailure, PhotoProcessor, PlayerMoves } from './ports';
 
-export type CompleteError = CompleteFailure | 'unreadable-photo';
+export type CompleteError = CompleteFailure | PhotoLimitFailure | 'unreadable-photo';
 
 export async function completeAction(
   deps: { moves: PlayerMoves; photos: PhotoProcessor },

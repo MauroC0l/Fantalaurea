@@ -3,7 +3,7 @@
   import { onMount } from 'svelte';
   import { fly } from 'svelte/transition';
   import type { WriteFailure } from '../../application/ports';
-  import { photosOf, type ProfilePhoto } from '../../domain/profile';
+  import { PHOTO_LIMIT, photosOf, type ProfilePhoto } from '../../domain/profile';
   import Avatar from '../../ui/components/Avatar.svelte';
   import Button from '../../ui/components/Button.svelte';
   import EmptyState from '../../ui/components/EmptyState.svelte';
@@ -165,6 +165,12 @@
 
     <section class="section">
       <h2>Foto <span class="count">{photos.length}</span></h2>
+      {#if data.photoCount !== null}
+        <p class="muted" class:limit={data.photoCount >= PHOTO_LIMIT}>
+          Ne usi {data.photoCount} di {PHOTO_LIMIT}, contando anche quelle mandate in chat.
+          {#if data.photoCount >= PHOTO_LIMIT}Cancellane qualcuna per caricarne altre.{/if}
+        </p>
+      {/if}
       {#if photos.length === 0}
         <p class="muted">Ancora nessuna foto.</p>
       {:else}
@@ -226,6 +232,10 @@
 <style>
   .back {
     justify-self: start;
+  }
+
+  .limit {
+    color: var(--color-danger);
   }
 
   .avatar-zoom {

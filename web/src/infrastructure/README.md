@@ -5,10 +5,26 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
 ## Contenuto
 - `supabase/supabase-client.ts`: `createSupabaseClient`, l'unico client dell'app. Partita,
   chat e tempo reale ne condividono la connessione.
+- `supabase/change-signals.ts`: `ChangeSignals`, i segnali "la tabella X è cambiata" tra i
+  telefoni (ADR 0013):
+  - un solo canale broadcast `fantalaurea`, condiviso da tutti gli adattatori che scrivono
+    (partita, sondaggi, sfide);
+  - `announce(tables)` invia via HTTP se il canale non è collegato, e avvisa subito anche le
+    schermate di questo telefono;
+  - `onChange` raggruppa i segnali (300 ms) e, al risveglio del telefono, segnala tutte le
+    tabelle di `CHANGED_TABLES` (l'elenco sta nelle porte, quindi una tabella nuova non può
+    essere dimenticata).
 - `supabase/photos-function.ts`: come si chiama la Edge Function `photos`, in comune tra
-  backend e chat. `invokePhotos` traduce la risposta in un `Result` (`FeatureFailure`),
-  `asWriteFailure` trasforma `disabled` in `rejected` per le operazioni che nessun interruttore
-  può bloccare, `absoluteUrl` aggiunge l'indirizzo del server ai link (la funzione li
+  backend e chat. `invokePhotos` traduce la risposta in un `Result` (`FunctionFailureReason` =
+  `FeatureFailure` | `PhotoLimitFailure`). Tre adattatori restringono l'errore a ciò che
+  l'operazione può davvero ricevere, trasformando il resto in `rejected`:
+  - `asWriteFailure`: né interruttore né limite (`disabled` e `photo-limit` → `rejected`);
+  - `asFeatureFailure`: interruttore sì, limite no, come i vocali (`photo-limit` → `rejected`);
+  - `asPhotoWrite`: limite sì, interruttore proprio no, come le foto delle azioni (`disabled` →
+    `rejected`, `photo-limit` resta).
+
+  Così la firma di ogni porta dice solo gli errori possibili e le schermate non gestiscono casi
+  che non arrivano mai. `absoluteUrl` aggiunge l'indirizzo del server ai link (la funzione li
   restituisce senza host: l'indirizzo interno dello stack locale non è raggiungibile).
 - `supabase/supabase-backend.ts`: `SupabaseBackend(client, url, options)` implementa
   `PlayerAccounts`, `GameBoard`, `PlayerMoves`, `EveningAdmin` e `PhotoLinkProvider`.
@@ -18,11 +34,14 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
   - I link firmati (12 ore) sono tenuti in una cache: ogni foto si chiede una volta sola.
   - `features` / `setFeature`: gli interruttori della serata (RPC `features`,
     `admin_set_feature`); cambiarne uno annuncia `evening_settings`.
-  - Dopo ogni scrittura riuscita annuncia sul canale broadcast `fantalaurea` quali tabelle
-    sono cambiate (via HTTP se il canale non è collegato) e avvisa subito anche le schermate
-    di questo telefono (ADR 0013).
-  - `onChange` ascolta quel canale, raggruppa i segnali (300 ms) e al ritorno in primo piano
-    del telefono segnala tutte le tabelle.
+  - Utenti (ADR 0018): `players` (RPC `admin_players`), `setBlocked` (`admin_block_player`;
+    annuncia `players`, `sessions` e `posts`: gli altri rileggono senza il bloccato, il suo
+    telefono scopre di non avere più la sessione), `setPermission` (`admin_set_permission`,
+    annuncia `players`), `permissions` (RPC `permissions`).
+  - `completeWithPhoto` usa `asPhotoWrite`, `createPost` lascia passare `disabled` e
+    `photo-limit`.
+  - Dopo ogni scrittura riuscita annuncia le tabelle cambiate con `ChangeSignals`, che riceve
+    nel costruttore; `onChange` delega a lui.
   - Nel log admin invia lo user agent del telefono.
 - `supabase/supabase-chat.ts`: `SupabaseChat(client, url)` implementa `Chat` (ADR 0015, 0016).
   - Letture, testo e ciò che non tocca file con le RPC (`conversations`, `conversation`,
@@ -30,6 +49,7 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
     `mark_read`, `mark_unread`, `clear_conversation`, `hide_message` per "elimina per me");
     foto, vocali, link dei file, "elimina per tutti" e inoltro con la Edge Function
     (`chat-photo` / `chat-voice` con `replyTo`, `chat-media`, `delete-message`, `forward`).
+    `sendPhoto` e `forward` lasciano passare `photo-limit`; `sendVoice` usa `asFeatureFailure`.
   - I link dei file sono tenuti in una cache per messaggio, come quelli delle foto; un
     messaggio eliminato per tutti esce dalla cache.
   - Tempo reale: ogni giocatore ascolta il proprio canale `inbox:<inboxKey>`, con due eventi che

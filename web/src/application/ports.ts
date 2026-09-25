@@ -4,7 +4,7 @@ import type { Completion } from '../domain/completion';
 import type { AccessLogEntry, JoinRequest } from '../domain/evening';
 import type { FeatureName, Features } from '../domain/features';
 import type { FeedItem, Liker } from '../domain/feed';
-import type { AdminSession, Participant, PlayerSession, Session } from '../domain/player';
+import type { AdminSession, ManagedPlayer, Participant, Permission, Permissions, PlayerSession, Session } from '../domain/player';
 import type { Profile } from '../domain/profile';
 import type { Result } from '../domain/result';
 
@@ -20,6 +20,7 @@ export type JoinFailure =
   | { readonly kind: 'nickname-taken' }
   | { readonly kind: 'real-name-exists'; readonly existing: { readonly id: string; readonly nickname: string } }
   | { readonly kind: 'rejected' }
+  | { readonly kind: 'blocked' }
   | { readonly kind: Unavailable };
 export type ResumeFailure = 'unknown-token' | Unavailable;
 export type WriteFailure = 'unauthorized' | 'rejected' | Unavailable;
@@ -27,6 +28,8 @@ export type CompleteFailure = WriteFailure | 'photo-required';
 export type UpdateActionFailure = WriteFailure | 'kind-locked';
 /** The admin switched the feature off for this evening. */
 export type FeatureFailure = WriteFailure | 'disabled';
+/** The player already has PHOTO_LIMIT photos: one must go before another comes. */
+export type PhotoLimitFailure = 'photo-limit';
 
 /** Thrown by reads when the token is no longer valid (evening reset, players sent out). */
 export class SessionExpiredError extends Error {
@@ -43,15 +46,18 @@ export interface PlayerAccounts {
   resume(token: string): Promise<Result<Session, ResumeFailure>>;
 }
 
-export type ChangedTable =
-  | 'actions'
-  | 'players'
-  | 'player_completions'
-  | 'shared_completions'
-  | 'posts'
-  | 'likes'
-  | 'sessions'
-  | 'evening_settings';
+export const CHANGED_TABLES = [
+  'actions',
+  'players',
+  'player_completions',
+  'shared_completions',
+  'posts',
+  'likes',
+  'sessions',
+  'evening_settings',
+  'polls',
+] as const;
+export type ChangedTable = (typeof CHANGED_TABLES)[number];
 
 /** Reads reject with SessionExpiredError, or any other error when the backend is unavailable. */
 export interface GameBoard {
@@ -64,6 +70,7 @@ export interface GameBoard {
   profile(session: Session, playerId: string): Promise<Profile | null>;
   likers(session: Session, targetId: string): Promise<readonly Liker[]>;
   features(session: Session): Promise<Features>;
+  permissions(session: Session): Promise<Permissions>;
   /** Notifies which table changed; returns the unsubscribe function. */
   onChange(listener: (table: ChangedTable) => void): () => void;
 }
@@ -100,13 +107,17 @@ export interface PhotoDeletion {
 export interface PlayerMoves {
   complete(session: PlayerSession, actionId: string): Promise<Result<void, CompleteFailure>>;
   /** Completes the action, or replaces the photo of an action already completed. */
-  completeWithPhoto(session: PlayerSession, actionId: string, photo: PreparedPhoto): Promise<Result<void, WriteFailure>>;
+  completeWithPhoto(
+    session: PlayerSession,
+    actionId: string,
+    photo: PreparedPhoto,
+  ): Promise<Result<void, WriteFailure | PhotoLimitFailure>>;
   /** Also deletes the completion's photo. */
   undo(session: PlayerSession, actionId: string): Promise<Result<void, WriteFailure>>;
   /** Works for action photos, post photos (deletes the post) and the profile photo. */
   deleteOwnPhoto(session: PlayerSession, photoId: string): Promise<Result<PhotoDeletion, WriteFailure>>;
   toggleLike(session: PlayerSession, targetId: string): Promise<Result<{ liked: boolean }, WriteFailure>>;
-  createPost(session: PlayerSession, photo: PreparedPhoto, caption: string): Promise<Result<void, FeatureFailure>>;
+  createPost(session: PlayerSession, photo: PreparedPhoto, caption: string): Promise<Result<void, FeatureFailure | PhotoLimitFailure>>;
   deletePost(session: PlayerSession, postId: string): Promise<Result<void, WriteFailure>>;
   updateBio(session: PlayerSession, bio: string): Promise<Result<void, WriteFailure>>;
   setAvatar(session: PlayerSession, photo: PreparedPhoto): Promise<Result<void, WriteFailure>>;
@@ -125,6 +136,10 @@ export interface EveningAdmin {
   setSecretWord(session: AdminSession, word: string | null, sendPlayersOut: boolean): Promise<Result<string, WriteFailure>>;
   accessLog(session: AdminSession): Promise<Result<readonly AccessLogEntry[], WriteFailure>>;
   setFeature(session: AdminSession, feature: FeatureName, enabled: boolean): Promise<Result<void, WriteFailure>>;
+  players(session: AdminSession): Promise<Result<readonly ManagedPlayer[], WriteFailure>>;
+  /** Blocking sends the player out at once and hides what they posted, until unblocked. */
+  setBlocked(session: AdminSession, playerId: string, blocked: boolean): Promise<Result<void, WriteFailure>>;
+  setPermission(session: AdminSession, playerId: string, permission: Permission, enabled: boolean): Promise<Result<void, WriteFailure>>;
   /** Removes players, completions, posts, photos and the access log; draws a new secret word. */
   resetEvening(session: AdminSession): Promise<Result<void, WriteFailure>>;
 }
@@ -150,7 +165,7 @@ export interface Chat {
     conversationId: string,
     photo: PreparedPhoto,
     replyTo: string | null,
-  ): Promise<Result<void, FeatureFailure>>;
+  ): Promise<Result<void, FeatureFailure | PhotoLimitFailure>>;
   sendVoice(
     session: PlayerSession,
     conversationId: string,
@@ -159,7 +174,11 @@ export interface Chat {
   ): Promise<Result<void, FeatureFailure>>;
   editMessage(session: PlayerSession, messageId: string, text: string): Promise<Result<void, FeatureFailure>>;
   deleteMessage(session: PlayerSession, messageId: string, scope: DeleteScope): Promise<Result<void, WriteFailure>>;
-  forward(session: PlayerSession, messageId: string, conversationIds: readonly string[]): Promise<Result<void, FeatureFailure>>;
+  forward(
+    session: PlayerSession,
+    messageId: string,
+    conversationIds: readonly string[],
+  ): Promise<Result<void, FeatureFailure | PhotoLimitFailure>>;
   markRead(session: PlayerSession, conversationId: string): Promise<void>;
   markUnread(session: PlayerSession, conversationId: string): Promise<Result<void, WriteFailure>>;
   /** "empty" keeps the chat in the list; "remove" takes it out until a new message arrives. Only for this player. */

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { PHOTO_LIMIT_MESSAGE } from '../labels';
   import { onDestroy } from 'svelte';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
@@ -50,6 +51,7 @@
     'caption-too-long': 'La didascalia è troppo lunga',
     disabled: 'La bacheca è stata spenta dall’admin',
     'unreadable-photo': 'Non riesco a leggere questa foto: provane un’altra',
+    'photo-limit': PHOTO_LIMIT_MESSAGE,
   };
 
   // Keeps "5 min fa" accurate without reloading.

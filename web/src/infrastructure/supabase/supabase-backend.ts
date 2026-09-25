@@ -1,5 +1,6 @@
-import type { PostgrestError, RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
+import type { PostgrestError, SupabaseClient } from '@supabase/supabase-js';
 import {
+  CHANGED_TABLES,
   FEED_PAGE_SIZE,
   SessionExpiredError,
   type AlbumPhoto,
@@ -10,6 +11,7 @@ import {
   type GameBoard,
   type JoinFailure,
   type PhotoDeletion,
+  type PhotoLimitFailure,
   type PhotoLinkProvider,
   type PhotoLinks,
   type PlayerAccounts,
@@ -25,10 +27,11 @@ import type { Completion } from '../../domain/completion';
 import type { AccessLogEntry, JoinRequest } from '../../domain/evening';
 import type { FeatureName, Features } from '../../domain/features';
 import type { FeedItem, Liker } from '../../domain/feed';
-import type { AdminSession, Participant, PlayerSession, Session } from '../../domain/player';
+import type { AdminSession, ManagedPlayer, Participant, Permission, Permissions, PlayerSession, Session } from '../../domain/player';
 import type { Profile } from '../../domain/profile';
 import { err, ok, type Result } from '../../domain/result';
-import { absoluteUrl, asWriteFailure, invokePhotos, type FunctionReply } from './photos-function';
+import type { ChangeSignals } from './change-signals';
+import { absoluteUrl, asPhotoWrite, asWriteFailure, invokePhotos, type FunctionReply } from './photos-function';
 
 // Shapes returned by supabase/migrations and supabase/functions/photos.
 type SessionRow =
@@ -74,8 +77,20 @@ interface FeedRow {
   like_count: number;
   liked_by_me: boolean;
 }
+interface ManagedPlayerRow {
+  id: string;
+  nickname: string;
+  real_name: string;
+  avatar_id: string | null;
+  blocked: boolean;
+  can_create_polls: boolean;
+  can_create_challenges: boolean;
+  photos: number;
+  joined_at: string;
+}
 interface ProfileJson {
   player: { id: string; nickname: string; realName: string; bio: string; avatarId: string | null };
+  photoCount: number | null;
   completions: {
     id: string;
     actionId: string;
@@ -88,31 +103,20 @@ interface ProfileJson {
   posts: { id: string; photoId: string; caption: string; createdAt: string }[];
 }
 
-const CHANNEL = 'fantalaurea';
 const INVALID_TEXT_REPRESENTATION = '22P02';
 const INVALID_AUTHORIZATION = '28000';
 const MAX_LINKS_PER_REQUEST = 100;
 
-export interface SupabaseBackendOptions {
-  /** Many changes at once produce many signals: listeners hear about them once, after a pause. */
-  readonly notifyDebounceMs: number;
-}
-
 export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, EveningAdmin, PhotoLinkProvider {
   readonly #client: SupabaseClient;
   readonly #url: string;
-  readonly #options: SupabaseBackendOptions;
-  readonly #listeners = new Set<(table: ChangedTable) => void>();
+  readonly #signals: ChangeSignals;
   readonly #linkCache = new Map<string, PhotoLinks>();
-  readonly #pendingTables = new Set<ChangedTable>();
-  #channel: RealtimeChannel | null = null;
-  #sender: RealtimeChannel | null = null;
-  #notifyTimer: ReturnType<typeof setTimeout> | undefined;
 
-  constructor(client: SupabaseClient, url: string, options: SupabaseBackendOptions) {
+  constructor(client: SupabaseClient, url: string, signals: ChangeSignals) {
     this.#client = client;
     this.#url = url;
-    this.#options = options;
+    this.#signals = signals;
   }
 
   // ------------------------------------------------------------------ accounts
@@ -135,7 +139,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     if (error) return err({ kind: 'unavailable' });
     const reply = data as
       | { session: SessionRow }
-      | { error: 'wrong-word' | 'nickname-taken' | 'rejected' }
+      | { error: 'wrong-word' | 'nickname-taken' | 'rejected' | 'blocked' }
       | { error: 'real-name-exists'; existing: { id: string; nickname: string } };
     if ('session' in reply) {
       this.#announce(['players']);
@@ -192,9 +196,14 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     if (!json) return null;
     return {
       ...json.player,
+      photoCount: json.photoCount === null ? null : Number(json.photoCount),
       completions: json.completions.map((c) => ({ ...c, completedAt: new Date(c.completedAt) })),
       posts: json.posts.map((p) => ({ ...p, createdAt: new Date(p.createdAt) })),
     };
+  }
+
+  permissions(session: Session): Promise<Permissions> {
+    return this.#read<Permissions>('permissions', { p_token: session.token });
   }
 
   features(session: Session): Promise<Features> {
@@ -210,12 +219,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   }
 
   onChange(listener: (table: ChangedTable) => void): () => void {
-    this.#listeners.add(listener);
-    this.#ensureSubscribed();
-    return () => {
-      this.#listeners.delete(listener);
-      if (this.#listeners.size === 0) this.#unsubscribe();
-    };
+    return this.#signals.onChange(listener);
   }
 
   /** Signed links last a whole evening (12 h): each id is asked for once per session. */
@@ -244,8 +248,13 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     return ok(undefined);
   }
 
-  async completeWithPhoto(session: PlayerSession, actionId: string, photo: PreparedPhoto): Promise<Result<void, WriteFailure>> {
-    return this.#announceIfOk(COMPLETIONS, this.#toVoid(await this.#invoke(photoForm('complete', session, photo, { actionId }))));
+  async completeWithPhoto(
+    session: PlayerSession,
+    actionId: string,
+    photo: PreparedPhoto,
+  ): Promise<Result<void, WriteFailure | PhotoLimitFailure>> {
+    const reply = asPhotoWrite(await invokePhotos(this.#client, photoForm('complete', session, photo, { actionId })));
+    return this.#announceIfOk(COMPLETIONS, this.#toVoid(reply));
   }
 
   async undo(session: PlayerSession, actionId: string): Promise<Result<void, WriteFailure>> {
@@ -263,7 +272,11 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     return reply.status === 'ok' ? this.#announceIfOk(['likes'], ok({ liked: reply.liked })) : err(reply.status);
   }
 
-  async createPost(session: PlayerSession, photo: PreparedPhoto, caption: string): Promise<Result<void, FeatureFailure>> {
+  async createPost(
+    session: PlayerSession,
+    photo: PreparedPhoto,
+    caption: string,
+  ): Promise<Result<void, FeatureFailure | PhotoLimitFailure>> {
     const reply = await invokePhotos(this.#client, photoForm('post', session, photo, { caption }));
     return this.#announceIfOk(['posts'], this.#toVoid(reply));
   }
@@ -346,6 +359,50 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     return data === 'ok' ? this.#announceIfOk(['evening_settings'], ok(undefined)) : err(data as WriteFailure);
   }
 
+  async players(session: AdminSession): Promise<Result<readonly ManagedPlayer[], WriteFailure>> {
+    const { data, error } = await this.#client.rpc('admin_players', { p_token: session.token });
+    if (error) return err(error.code === INVALID_AUTHORIZATION ? 'unauthorized' : 'unavailable');
+    return ok(
+      (data as ManagedPlayerRow[]).map((row) => ({
+        id: row.id,
+        nickname: row.nickname,
+        realName: row.real_name,
+        avatarId: row.avatar_id,
+        blocked: row.blocked,
+        permissions: { polls: row.can_create_polls, challenges: row.can_create_challenges },
+        photos: Number(row.photos),
+        joinedAt: new Date(row.joined_at),
+      })),
+    );
+  }
+
+  async setBlocked(session: AdminSession, playerId: string, blocked: boolean): Promise<Result<void, WriteFailure>> {
+    const { data, error } = await this.#client.rpc('admin_block_player', {
+      p_token: session.token,
+      p_player: playerId,
+      p_blocked: blocked,
+    });
+    if (error) return err('unavailable');
+    // Everyone reloads without them; their own phone finds its session gone.
+    return data === 'ok' ? this.#announceIfOk(['players', 'sessions', 'posts'], ok(undefined)) : err(data as WriteFailure);
+  }
+
+  async setPermission(
+    session: AdminSession,
+    playerId: string,
+    permission: Permission,
+    enabled: boolean,
+  ): Promise<Result<void, WriteFailure>> {
+    const { data, error } = await this.#client.rpc('admin_set_permission', {
+      p_token: session.token,
+      p_player: playerId,
+      p_permission: permission,
+      p_enabled: enabled,
+    });
+    if (error) return err('unavailable');
+    return data === 'ok' ? this.#announceIfOk(['players'], ok(undefined)) : err(data as WriteFailure);
+  }
+
   async accessLog(session: AdminSession): Promise<Result<readonly AccessLogEntry[], WriteFailure>> {
     const { data, error } = await this.#client.rpc('admin_access_log', { p_token: session.token });
     if (error) return err(error.code === INVALID_AUTHORIZATION ? 'unauthorized' : 'unavailable');
@@ -355,7 +412,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   async resetEvening(session: AdminSession): Promise<Result<void, WriteFailure>> {
     const result = this.#toVoid(await this.#invoke({ op: 'reset', token: session.token }));
     if (result.ok) this.#linkCache.clear();
-    return this.#announceIfOk(ALL_TABLES, result);
+    return this.#announceIfOk(CHANGED_TABLES, result);
   }
 
   // ------------------------------------------------------------------ internals
@@ -380,21 +437,8 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     return result;
   }
 
-  /**
-   * Tells every phone which tables changed (ADR 0013), this one included: a broadcast does not
-   * come back to its sender. Without a joined channel the announcement goes over HTTP.
-   */
   #announce(tables: readonly ChangedTable[]): void {
-    for (const table of tables) this.#notifySoon(table);
-    const channel = this.#channel ?? (this.#sender ??= this.#client.channel(CHANNEL));
-    for (const table of tables) {
-      const payload = { table };
-      const sent = channel.state === 'joined'
-        ? channel.send({ type: 'broadcast', event: 'changed', payload })
-        : channel.httpSend('changed', payload);
-      // A lost signal is recovered by the next one or when a phone comes back to the foreground.
-      void sent.catch(() => {});
-    }
+    this.#signals.announce(tables);
   }
 
   #toVoid<E>(result: Result<unknown, E>): Result<void, E> {
@@ -404,56 +448,10 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   #absolute(links: PhotoLinks): PhotoLinks {
     return { thumbnailUrl: absoluteUrl(this.#url, links.thumbnailUrl), fullUrl: absoluteUrl(this.#url, links.fullUrl) };
   }
-
-  #ensureSubscribed(): void {
-    if (this.#channel) return;
-    // Signals carry only "table X changed": data is read again with the token (ADR 0011, 0013).
-    const channel = this.#client
-      .channel(CHANNEL)
-      .on('broadcast', { event: 'changed' }, ({ payload }) => this.#notifySoon((payload as { table: ChangedTable }).table));
-    // A phone waking up may have missed signals while the connection was asleep.
-    channel.subscribe((status) => status === 'SUBSCRIBED' && this.#notifyEverything());
-    document.addEventListener('visibilitychange', this.#onVisible);
-    this.#channel = channel;
-  }
-
-  #unsubscribe(): void {
-    document.removeEventListener('visibilitychange', this.#onVisible);
-    if (this.#channel) void this.#client.removeChannel(this.#channel);
-    this.#channel = null;
-  }
-
-  readonly #onVisible = () => {
-    if (document.visibilityState === 'visible') this.#notifyEverything();
-  };
-
-  #notifyEverything(): void {
-    for (const table of ALL_TABLES) this.#notifySoon(table);
-  }
-
-  #notifySoon(table: ChangedTable): void {
-    this.#pendingTables.add(table);
-    clearTimeout(this.#notifyTimer);
-    this.#notifyTimer = setTimeout(() => {
-      const tables = [...this.#pendingTables];
-      this.#pendingTables.clear();
-      for (const listener of this.#listeners) for (const changed of tables) listener(changed);
-    }, this.#options.notifyDebounceMs);
-  }
 }
 
 const COMPLETIONS: readonly ChangedTable[] = ['player_completions', 'shared_completions'];
 const PHOTO_OWNERS: readonly ChangedTable[] = [...COMPLETIONS, 'posts', 'players'];
-
-const ALL_TABLES: readonly ChangedTable[] = [
-  'actions',
-  'players',
-  'player_completions',
-  'shared_completions',
-  'posts',
-  'likes',
-  'sessions',
-];
 
 function toReadError(error: PostgrestError): Error {
   return error.code === INVALID_AUTHORIZATION ? new SessionExpiredError() : new Error(error.message);

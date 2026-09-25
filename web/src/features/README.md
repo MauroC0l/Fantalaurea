@@ -9,7 +9,10 @@ Le schermate e il loro stato.
 - `join/SecretWordScreen`: parola della serata (e link "Sei l'admin?").
 - `join/JoinScreen`: nickname + nome vero (in modalità admin: "Entra come admin", con
   Indietro); se il nome vero esiste già chiede "Sei tu?"
-  (prendi il vecchio profilo / sono un'altra persona / annulla).
+  (prendi il vecchio profilo / sono un'altra persona / annulla). A un giocatore bloccato
+  (`blocked`) dice che l'admin lo ha tolto dalla serata. Le risposte sono gestite con uno
+  `switch` esaustivo (`satisfies never`): un errore nuovo nella porta non compila finché la
+  schermata non lo gestisce.
 
 ## Giocatore (tab Bacheca · Azioni · Classifica · Chat · Profilo)
 Bacheca, Classifica e Chat si possono spegnere dall'admin (ADR 0014): la loro scheda sparisce
@@ -27,7 +30,8 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 - `profile/ProfileScreen` + `BioEditorDialog`, `profile-state.svelte.ts`: foto profilo,
   nickname, nome vero, punti, posizione (solo con `showRank`, cioè classifica accesa), bio,
   foto, azioni completate (in una `ScrollArea`: sotto c'è altro). Toccando la foto profilo
-  si ingrandisce (`Lightbox`). Sul proprio profilo: cambia/togli foto, modifica bio, regole, esci.
+  si ingrandisce (`Lightbox`). Sul proprio profilo: "Ne usi N di 100" (da `photoCount`, in
+  rosso al limite), cambia/togli foto, modifica bio, regole, esci.
   Sul profilo di un altro, con la chat accesa, "Invia messaggio" (`onmessage`).
 - `chat/` (ADR 0015, 0016 "come WhatsApp"):
   - `chat-list-state.svelte.ts`: `ChatListState`, le conversazioni aperte e il totale dei non
@@ -62,14 +66,25 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
     con `Clipboard`, modifica, inoltra, elimina per me / per tutti); trascinandolo a destra si
     risponde; toccando una citazione si salta al messaggio citato, se è già caricato, e lo si
     illumina. Riceve `chatList` per l'elenco delle chat dell'inoltro. Nasconde la tab bar.
-- `game/game-state.svelte.ts`: catalogo, completamenti, classifica e funzioni accese
-  (`features`, riletto quando cambia `evening_settings`); `SessionExpiredError` →
-  `onSessionLost`.
+- `game/game-state.svelte.ts`: catalogo, completamenti, classifica, funzioni accese
+  (`features`, riletto quando cambia `evening_settings`) e `permissions` (cosa l'admin gli
+  lascia creare, ADR 0018; riletto con il resto, anche quando cambia `players`);
+  `SessionExpiredError` → `onSessionLost`.
 - `photos/photo-links.svelte.ts`: `PhotoLinksCache`, i link delle foto come stato reattivo;
   le richieste fatte durante un rendering partono insieme.
 
-## Admin (tab Azioni · Album · Serata)
+## Admin (tab Azioni · Utenti · Album · Serata)
 - `admin/AdminActionsScreen` + `ActionEditorDialog`: lista, crea, modifica, elimina azioni.
+- `admin/UsersScreen` + `users-state.svelte.ts` (ADR 0018):
+  - `UsersState`: tutti i giocatori (`EveningAdmin.players`), bloccati compresi. Si rilegge
+    quando cambiano `players`, `posts` o `player_completions` (chi entra, foto che arrivano o
+    spariscono). `setPermission` e `setBlocked` sono ottimisti: la riga cambia subito e torna
+    com'era se il server rifiuta.
+  - `UsersScreen`: ricerca per nickname o nome vero (`matchesSearch`), filtri Tutti / Con
+    permessi / Bloccati, righe dei bloccati in grigio con il badge "Bloccato", foto usate su
+    `PHOTO_LIMIT` (evidenziate al limite). Toccando una riga si apre la scheda: nome vero, foto,
+    ora di ingresso, interruttori dei permessi (spenti per un bloccato) e "Blocca" (con
+    conferma) / "Sblocca". Riceve la `PhotoLinksCache` per le foto profilo.
 - `admin/AlbumScreen` + `album-state.svelte.ts`: tutte le foto (azioni e post), condividi,
   ZIP, elimina (moderazione). Schermata `wide`: su computer la griglia riempie la finestra
   (colonne automatiche da 700 px). Il visore mostra tipo, titolo dell'azione o didascalia del
@@ -84,9 +99,10 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 
 ## Condivisi
 - `routes.ts`: i percorsi (`Route`, `hrefTo`), usati dai link e dal router di `app/`; tra
-  questi `chat` e `conversazione/<id>`.
+  questi `chat`, `conversazione/<id>` e `utenti`.
 - `labels.ts`: etichette, formato dell'ora, "5 min fa", `formatDay` ("Oggi", "Ieri", "ven 25
-  set") e `startOfDay`, nome leggibile del dispositivo.
+  set") e `startOfDay`, nome leggibile del dispositivo, `PHOTO_LIMIT_MESSAGE` (lo stesso
+  avviso per `photo-limit` in Azioni, Bacheca e chat).
 - Ogni scelta di foto (azioni, post, foto profilo, chat) usa lo stesso `PhotoPickerButton` di
   `ui/`: fotocamera o galleria si sceglie lì, non nelle schermate.
 
@@ -94,4 +110,4 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 - Dipende da: `application/`, `domain/`, `ui/`.
 - Usato da: `app/` (`App.svelte`).
 - Ascolta: `GameBoard.onChange`, `Chat.onInbox`, `Chat.onTyping`.
-- Dati posseduti: stato in memoria di partita, bacheca, chat, profili, pannello e album.
+- Dati posseduti: stato in memoria di partita, bacheca, chat, profili, pannello, utenti e album.

@@ -32,7 +32,7 @@
   import TypingIndicator from '../../ui/components/TypingIndicator.svelte';
   import VoicePlayer from '../../ui/components/VoicePlayer.svelte';
   import { toasts } from '../../ui/components/toasts.svelte';
-  import { formatTime } from '../labels';
+  import { formatTime, PHOTO_LIMIT_MESSAGE } from '../labels';
   import type { PhotoLinksCache } from '../photos/photo-links.svelte';
   import { hrefTo } from '../routes';
   import type { ChatListState } from './chat-list-state.svelte';
@@ -73,6 +73,7 @@
     rejected: 'Messaggio non valido',
     disabled: 'La chat è stata spenta dall’admin',
     'unreadable-photo': 'Non riesco a leggere questa foto',
+    'photo-limit': PHOTO_LIMIT_MESSAGE,
   };
 
   const LABELS: Record<MessageAction, { icon: SheetItem['icon']; label: string; danger?: boolean }> = {
@@ -212,7 +213,8 @@
       forwarding = null;
       toasts.show(conversationIds.length === 1 ? 'Inoltrato' : `Inoltrato a ${conversationIds.length} chat`, 'info');
     } else if (result.error !== 'unauthorized') {
-      toasts.show(result.error === 'disabled' ? 'La chat è stata spenta dall’admin' : 'Non sono riuscito a inoltrarlo', 'error');
+      const reason = { disabled: 'La chat è stata spenta dall’admin', 'photo-limit': PHOTO_LIMIT_MESSAGE }[result.error as string];
+      toasts.show(reason ?? 'Non sono riuscito a inoltrarlo', 'error');
     }
   }
 </script>

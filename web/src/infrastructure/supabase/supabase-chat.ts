@@ -5,6 +5,7 @@ import {
   type Chat,
   type ChatMediaLinks,
   type FeatureFailure,
+  type PhotoLimitFailure,
   type PreparedPhoto,
   type WriteFailure,
 } from '../../application/ports';
@@ -19,7 +20,7 @@ import type {
 } from '../../domain/chat';
 import type { PlayerSession } from '../../domain/player';
 import { err, ok, type Result } from '../../domain/result';
-import { absoluteUrl, asWriteFailure, invokePhotos } from './photos-function';
+import { absoluteUrl, asFeatureFailure, asWriteFailure, invokePhotos } from './photos-function';
 
 // Shapes returned by supabase/migrations (chat_like_whatsapp) and supabase/functions/photos.
 interface ConversationRow {
@@ -174,7 +175,7 @@ export class SupabaseChat implements Chat {
     conversationId: string,
     photo: PreparedPhoto,
     replyTo: string | null,
-  ): Promise<Result<void, FeatureFailure>> {
+  ): Promise<Result<void, FeatureFailure | PhotoLimitFailure>> {
     const form = mediaForm('chat-photo', session, conversationId, replyTo);
     form.append('full', photo.full, 'full.jpg');
     form.append('thumbnail', photo.thumbnail, 'thumbnail.jpg');
@@ -190,7 +191,7 @@ export class SupabaseChat implements Chat {
     const form = mediaForm('chat-voice', session, conversationId, replyTo);
     form.append('audio', new File([voice.blob], `voce.${AUDIO_EXTENSIONS[voice.mime] ?? 'bin'}`, { type: voice.mime }));
     form.append('durationMs', String(Math.round(voice.durationMs)));
-    return this.#afterFunctionSend(conversationId, await invokePhotos<{ recipientInbox: string }>(this.#client, form));
+    return this.#afterFunctionSend(conversationId, asFeatureFailure(await invokePhotos<{ recipientInbox: string }>(this.#client, form)));
   }
 
   async editMessage(session: PlayerSession, messageId: string, text: string): Promise<Result<void, FeatureFailure>> {
@@ -224,7 +225,7 @@ export class SupabaseChat implements Chat {
     session: PlayerSession,
     messageId: string,
     conversationIds: readonly string[],
-  ): Promise<Result<void, FeatureFailure>> {
+  ): Promise<Result<void, FeatureFailure | PhotoLimitFailure>> {
     const reply = await invokePhotos<{ delivered: { conversationId: string; recipientInbox: string }[] }>(this.#client, {
       op: 'forward',
       token: session.token,
@@ -302,10 +303,10 @@ export class SupabaseChat implements Chat {
     return ok(undefined);
   }
 
-  #afterFunctionSend(
+  #afterFunctionSend<E>(
     conversationId: string,
-    reply: Result<{ status: 'ok'; recipientInbox: string }, FeatureFailure>,
-  ): Result<void, FeatureFailure> {
+    reply: Result<{ status: 'ok'; recipientInbox: string }, E>,
+  ): Result<void, E> {
     if (!reply.ok) return reply;
     this.#notify(conversationId, reply.value.recipientInbox);
     return ok(undefined);

@@ -10,6 +10,8 @@
   import AlbumScreen from './features/admin/AlbumScreen.svelte';
   import EveningScreen from './features/admin/EveningScreen.svelte';
   import { AdminState } from './features/admin/admin-state.svelte';
+  import UsersScreen from './features/admin/UsersScreen.svelte';
+  import { UsersState } from './features/admin/users-state.svelte';
   import { AlbumState } from './features/admin/album-state.svelte';
   import FeedScreen from './features/feed/FeedScreen.svelte';
   import { FeedState } from './features/feed/feed-state.svelte';
@@ -45,7 +47,7 @@
     /** secretWord: null = not given yet; '' = the admin's way in, without it. */
     | { kind: 'anonymous'; secretWord: string | null }
     | { kind: 'playing'; game: GameState; feed: FeedState; chatList: ChatListState; links: PhotoLinksCache }
-    | { kind: 'administering'; admin: AdminState; album: AlbumState };
+    | { kind: 'administering'; admin: AdminState; album: AlbumState; users: UsersState; links: PhotoLinksCache };
 
   const deps = composeApp();
   const router = new PathRouter();
@@ -62,6 +64,7 @@
 
   const ADMIN_TABS = [
     { id: 'admin', label: 'Azioni', icon: 'checklist', href: hrefTo({ name: 'admin' }) },
+    { id: 'utenti', label: 'Utenti', icon: 'users', href: hrefTo({ name: 'utenti' }) },
     { id: 'album', label: 'Album', icon: 'image', href: hrefTo({ name: 'album' }) },
     { id: 'serata', label: 'Serata', icon: 'key', href: hrefTo({ name: 'serata' }) },
   ] as const;
@@ -118,7 +121,7 @@
 
   const adminTab = $derived.by((): AdminTab => {
     const name = router.current?.name;
-    return name === 'album' || name === 'serata' ? name : 'admin';
+    return name === 'album' || name === 'serata' || name === 'utenti' ? name : 'admin';
   });
 
   const anonymousScreen = $derived.by(() => {
@@ -166,10 +169,12 @@
   function enter(session: Session) {
     stopCurrent();
     if (session.role === 'admin') {
-      const admin = new AdminState(deps, session, () => signOut('Sessione admin scaduta: rientra'));
-      app = { kind: 'administering', admin, album: new AlbumState(deps, session) };
+      const expired = () => signOut('Sessione admin scaduta: rientra');
+      const admin = new AdminState(deps, session, expired);
+      const users = new UsersState(deps, session, expired);
+      app = { kind: 'administering', admin, album: new AlbumState(deps, session), users, links: new PhotoLinksCache(deps.links, session, expired) };
       void admin.start();
-      if (router.current?.name !== 'album' && router.current?.name !== 'serata') router.go({ name: 'admin' }, { replace: true });
+      if (!['album', 'serata', 'utenti'].includes(router.current?.name ?? '')) router.go({ name: 'admin' }, { replace: true });
       return;
     }
     play(session);
@@ -271,7 +276,9 @@
 {:else if app.kind === 'administering'}
   {#key adminTab}
     <div in:fade={{ duration: duration('base') }}>
-      {#if adminTab === 'album'}
+      {#if adminTab === 'utenti'}
+        <UsersScreen users={app.users} links={app.links} />
+      {:else if adminTab === 'album'}
         <AlbumScreen album={app.album} onunauthorized={() => signOut('Sessione admin scaduta: rientra')} />
       {:else if adminTab === 'serata'}
         <EveningScreen

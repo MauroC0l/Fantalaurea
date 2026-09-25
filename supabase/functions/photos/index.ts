@@ -27,6 +27,7 @@ const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SE
 type Reply = { status: string; [key: string]: unknown };
 
 const UNAUTHORIZED: Reply = { status: 'unauthorized' };
+const PHOTO_LIMIT: Reply = { status: 'photo-limit' };
 const REJECTED: Reply = { status: 'rejected' };
 const OK: Reply = { status: 'ok' };
 
@@ -114,6 +115,7 @@ async function sendChatPhoto(form: FormData): Promise<Reply> {
   if (!isUuid(conversationId) || replyTo === false || !isJpeg(full, MAX_FULL_BYTES) || !isJpeg(thumbnail, MAX_THUMBNAIL_BYTES)) {
     return REJECTED;
   }
+  if (!(await hasPhotoRoom(playerId))) return PHOTO_LIMIT;
 
   const mediaId = crypto.randomUUID();
   await uploadTo(CHAT_BUCKET, chatPhotoPath(mediaId), full, 'image/jpeg');
@@ -303,6 +305,7 @@ async function completeWithPhoto(form: FormData): Promise<Reply> {
   if (!playerId) return UNAUTHORIZED;
   const actionId = form.get('actionId');
   if (typeof actionId !== 'string') return REJECTED;
+  if (!(await hasPhotoRoom(playerId))) return PHOTO_LIMIT;
   const photoId = await uploadPair(form);
   if (!photoId) return REJECTED;
 
@@ -323,6 +326,7 @@ async function createPost(form: FormData): Promise<Reply> {
   const playerId = await playerOf(form.get('token'));
   if (!playerId) return UNAUTHORIZED;
   const caption = form.get('caption');
+  if (!(await hasPhotoRoom(playerId))) return PHOTO_LIMIT;
   const photoId = await uploadPair(form);
   if (!photoId) return REJECTED;
 
@@ -465,6 +469,14 @@ async function actorOf(token: unknown): Promise<{ playerId: string | null } | nu
   if (await isAdmin(token)) return { playerId: null };
   const playerId = await playerOf(token);
   return playerId ? { playerId } : null;
+}
+
+/**
+ * 100 photos each (ADR 0018). Asked before uploading so a refused photo costs no upload; the SQL
+ * functions check again when saving, in case two photos race.
+ */
+function hasPhotoRoom(playerId: string): Promise<boolean> {
+  return call<boolean>('svc_photo_room', { p_player: playerId });
 }
 
 async function hasSession(token: unknown): Promise<boolean> {

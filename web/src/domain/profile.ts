@@ -1,6 +1,8 @@
 import type { ActionKind } from './action';
 
 export const BIO_MAX = 500;
+/** Photos each player may have at once: actions, posts and chat; the profile photo is free (ADR 0018). */
+export const PHOTO_LIMIT = 100;
 
 export interface ProfileCompletion {
   readonly id: string;
@@ -25,6 +27,8 @@ export interface Profile {
   readonly realName: string;
   readonly bio: string;
   readonly avatarId: string | null;
+  /** Only on your own profile: how many of the PHOTO_LIMIT you use. */
+  readonly photoCount: number | null;
   readonly completions: readonly ProfileCompletion[];
   readonly posts: readonly ProfilePost[];
 }

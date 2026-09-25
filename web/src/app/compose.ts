@@ -19,6 +19,7 @@ import { browserStorage } from '../infrastructure/browser/safe-storage';
 import { storageSessionStore } from '../infrastructure/browser/storage-session-store';
 import { browserVoiceRecorder } from '../infrastructure/browser/browser-voice-recorder';
 import { vibrationHaptics } from '../infrastructure/browser/vibration-haptics';
+import { ChangeSignals } from '../infrastructure/supabase/change-signals';
 import { SupabaseBackend } from '../infrastructure/supabase/supabase-backend';
 import { SupabaseChat } from '../infrastructure/supabase/supabase-chat';
 import { createSupabaseClient } from '../infrastructure/supabase/supabase-client';
@@ -53,7 +54,8 @@ export function composeApp(): AppDependencies {
 
   const client = createSupabaseClient(url, key);
   const baseUrl = url.replace(/\/$/, '');
-  const backend = new SupabaseBackend(client, baseUrl, { notifyDebounceMs: 300 });
+  const signals = new ChangeSignals(client, { notifyDebounceMs: 300 });
+  const backend = new SupabaseBackend(client, baseUrl, signals);
   return {
     accounts: backend,
     board: backend,
