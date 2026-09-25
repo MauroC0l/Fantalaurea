@@ -40,9 +40,10 @@ Le foto stanno nel bucket PRIVATO `photos` (`full/<id>.jpg`, `thumb/<id>.jpg`).
   eseguibili solo dal `service_role`.
 
 ## Tempo reale
-Nessun dato viaggia: trigger su `actions`, `players`, completamenti, `posts`, `likes` e
-`sessions` mandano sul canale broadcast pubblico `fantalaurea` l'evento `changed` con il solo
-nome della tabella. I client rileggono con il loro token.
+Nessun dato viaggia. Dopo ogni scrittura è il client che l'ha fatta ad annunciare sul canale
+broadcast pubblico `fantalaurea` l'evento `changed` con il solo nome della tabella; gli altri
+rileggono con il loro token (ADR 0013). Il database non manda segnali: sul Supabase ospitato i
+broadcast generati dal database non arrivano ai canali pubblici.
 
 ## Relazioni
 - Usato da: `web/src/infrastructure/supabase/supabase-backend.ts`, l'unico modulo che conosce

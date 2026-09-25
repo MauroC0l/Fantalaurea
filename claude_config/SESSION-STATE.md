@@ -38,8 +38,9 @@ segreta. Si usa quasi solo da telefono. Prima festa: **2026-10-02**.
   - prova nel browser con 3 telefoni simulati + admin: parola sbagliata e giusta, post, doppio
     tocco, elenco dei like, scheda in tempo reale, bio e foto profilo, profilo dalla
     classifica, passaggio del profilo, log admin, cambio parola con espulsione.
-- Pubblicazione in produzione in corso in questo blocco (migrazione
-  `20260925120000_closed_evening_and_social.sql` + funzione `photos` + sito).
+- In produzione dal 2026-09-25 (commit c5e5d62 e successivi). Scoperto in produzione che i
+  broadcast generati dal database non arrivano ai canali pubblici del Supabase ospitato:
+  ora i segnali partono dai client (ADR 0013, migrazione `20260925150000_client_change_signals.sql`).
 
 ## Prossimi passi
 - L'utente prova con telefoni veri entro il 2026-09-30 (fotocamera, like, condivisione della

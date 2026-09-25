@@ -105,6 +105,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   readonly #linkCache = new Map<string, PhotoLinks>();
   readonly #pendingTables = new Set<ChangedTable>();
   #channel: RealtimeChannel | null = null;
+  #sender: RealtimeChannel | null = null;
   #notifyTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(url: string, publishableKey: string, options: SupabaseBackendOptions) {
@@ -135,7 +136,10 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
       | { session: SessionRow }
       | { error: 'wrong-word' | 'nickname-taken' | 'rejected' }
       | { error: 'real-name-exists'; existing: { id: string; nickname: string } };
-    if ('session' in reply) return ok(toSession(reply.session));
+    if ('session' in reply) {
+      this.#announce(['players']);
+      return ok(toSession(reply.session));
+    }
     return err(reply.error === 'real-name-exists' ? { kind: reply.error, existing: reply.existing } : { kind: reply.error });
   }
 
@@ -229,15 +233,17 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   async complete(session: PlayerSession, actionId: string): Promise<Result<void, CompleteFailure>> {
     const { data, error } = await this.#client.rpc('complete_action', { p_token: session.token, p_action_id: actionId });
     if (error) return err('unavailable');
-    return data === 'ok' ? ok(undefined) : err(data as CompleteFailure);
+    if (data !== 'ok') return err(data as CompleteFailure);
+    this.#announce(COMPLETIONS);
+    return ok(undefined);
   }
 
   async completeWithPhoto(session: PlayerSession, actionId: string, photo: PreparedPhoto): Promise<Result<void, WriteFailure>> {
-    return this.#toVoid(await this.#invoke(photoForm('complete', session, photo, { actionId })));
+    return this.#announceIfOk(COMPLETIONS, this.#toVoid(await this.#invoke(photoForm('complete', session, photo, { actionId }))));
   }
 
   async undo(session: PlayerSession, actionId: string): Promise<Result<void, WriteFailure>> {
-    return this.#toVoid(await this.#invoke({ op: 'undo', token: session.token, actionId }));
+    return this.#announceIfOk(COMPLETIONS, this.#toVoid(await this.#invoke({ op: 'undo', token: session.token, actionId })));
   }
 
   deleteOwnPhoto(session: PlayerSession, photoId: string): Promise<Result<PhotoDeletion, WriteFailure>> {
@@ -248,25 +254,25 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     const { data, error } = await this.#client.rpc('toggle_like', { p_token: session.token, p_target: targetId });
     if (error) return err('unavailable');
     const reply = data as { status: 'ok'; liked: boolean } | { status: 'unauthorized' | 'rejected' };
-    return reply.status === 'ok' ? ok({ liked: reply.liked }) : err(reply.status);
+    return reply.status === 'ok' ? this.#announceIfOk(['likes'], ok({ liked: reply.liked })) : err(reply.status);
   }
 
   async createPost(session: PlayerSession, photo: PreparedPhoto, caption: string): Promise<Result<void, WriteFailure>> {
-    return this.#toVoid(await this.#invoke(photoForm('post', session, photo, { caption })));
+    return this.#announceIfOk(['posts'], this.#toVoid(await this.#invoke(photoForm('post', session, photo, { caption }))));
   }
 
   async deletePost(session: PlayerSession, postId: string): Promise<Result<void, WriteFailure>> {
-    return this.#toVoid(await this.#invoke({ op: 'delete-post', token: session.token, postId }));
+    return this.#announceIfOk(['posts', 'likes'], this.#toVoid(await this.#invoke({ op: 'delete-post', token: session.token, postId })));
   }
 
   async updateBio(session: PlayerSession, bio: string): Promise<Result<void, WriteFailure>> {
     const { data, error } = await this.#client.rpc('update_bio', { p_token: session.token, p_bio: bio });
     if (error) return err('unavailable');
-    return data === 'ok' ? ok(undefined) : err(data as WriteFailure);
+    return data === 'ok' ? this.#announceIfOk(['players'], ok(undefined)) : err(data as WriteFailure);
   }
 
   async setAvatar(session: PlayerSession, photo: PreparedPhoto): Promise<Result<void, WriteFailure>> {
-    return this.#toVoid(await this.#invoke(photoForm('avatar', session, photo, {})));
+    return this.#announceIfOk(['players'], this.#toVoid(await this.#invoke(photoForm('avatar', session, photo, {}))));
   }
 
   // ------------------------------------------------------------------ admin
@@ -275,7 +281,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     const { data, error } = await this.#client.rpc('admin_add_action', { p_token: session.token, ...draftArgs(draft) });
     if (error) return err('unavailable');
     const reply = data as { action: Action } | { error: 'unauthorized' | 'rejected' };
-    return 'error' in reply ? err(reply.error) : ok(reply.action);
+    return 'error' in reply ? err(reply.error) : this.#announceIfOk(['actions'], ok(reply.action));
   }
 
   async updateAction(session: AdminSession, actionId: string, draft: ActionDraft): Promise<Result<void, UpdateActionFailure>> {
@@ -285,11 +291,11 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
       ...draftArgs(draft),
     });
     if (error) return err('unavailable');
-    return data === 'ok' ? ok(undefined) : err(data as UpdateActionFailure);
+    return data === 'ok' ? this.#announceIfOk(['actions'], ok(undefined)) : err(data as UpdateActionFailure);
   }
 
   async removeAction(session: AdminSession, actionId: string): Promise<Result<void, WriteFailure>> {
-    return this.#toVoid(await this.#invoke({ op: 'remove-action', token: session.token, actionId }));
+    return this.#announceIfOk(['actions', ...COMPLETIONS], this.#toVoid(await this.#invoke({ op: 'remove-action', token: session.token, actionId })));
   }
 
   async album(session: AdminSession): Promise<Result<readonly AlbumPhoto[], WriteFailure>> {
@@ -318,7 +324,9 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     });
     if (error) return err('unavailable');
     const reply = data as { status: 'ok'; word: string } | { status: 'unauthorized' | 'rejected' };
-    return reply.status === 'ok' ? ok(reply.word) : err(reply.status);
+    if (reply.status !== 'ok') return err(reply.status);
+    if (sendPlayersOut) this.#announce(['sessions']);
+    return ok(reply.word);
   }
 
   async accessLog(session: AdminSession): Promise<Result<readonly AccessLogEntry[], WriteFailure>> {
@@ -330,7 +338,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
   async resetEvening(session: AdminSession): Promise<Result<void, WriteFailure>> {
     const result = this.#toVoid(await this.#invoke({ op: 'reset', token: session.token }));
     if (result.ok) this.#linkCache.clear();
-    return result;
+    return this.#announceIfOk(ALL_TABLES, result);
   }
 
   // ------------------------------------------------------------------ internals
@@ -343,7 +351,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
 
   async #deletePhoto(token: string, photoId: string): Promise<Result<PhotoDeletion, WriteFailure>> {
     const reply = await this.#invoke<{ undone: boolean }>({ op: 'delete-photo', token, photoId });
-    return reply.ok ? ok({ undone: reply.value.undone }) : reply;
+    return reply.ok ? this.#announceIfOk(PHOTO_OWNERS, ok({ undone: reply.value.undone })) : reply;
   }
 
   async #invoke<T>(body: FormData | Record<string, unknown>): Promise<Result<FunctionReply<T>, WriteFailure>> {
@@ -352,6 +360,28 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     const reply = data as FunctionReply<T> | FunctionFailure;
     if (reply.status === 'ok') return ok(reply as FunctionReply<T>);
     return err(reply.status === 'error' ? 'unavailable' : reply.status);
+  }
+
+  #announceIfOk<T, E>(tables: readonly ChangedTable[], result: Result<T, E>): Result<T, E> {
+    if (result.ok) this.#announce(tables);
+    return result;
+  }
+
+  /**
+   * Tells every phone which tables changed (ADR 0013), this one included: a broadcast does not
+   * come back to its sender. Without a joined channel the announcement goes over HTTP.
+   */
+  #announce(tables: readonly ChangedTable[]): void {
+    for (const table of tables) this.#notifySoon(table);
+    const channel = this.#channel ?? (this.#sender ??= this.#client.channel(CHANNEL));
+    for (const table of tables) {
+      const payload = { table };
+      const sent = channel.state === 'joined'
+        ? channel.send({ type: 'broadcast', event: 'changed', payload })
+        : channel.httpSend('changed', payload);
+      // A lost signal is recovered by the next one or when a phone comes back to the foreground.
+      void sent.catch(() => {});
+    }
   }
 
   #toVoid(result: Result<unknown, WriteFailure>): Result<void, WriteFailure> {
@@ -365,7 +395,7 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
 
   #ensureSubscribed(): void {
     if (this.#channel) return;
-    // The database broadcasts only "table X changed": data is read again with the token (ADR 0011).
+    // Signals carry only "table X changed": data is read again with the token (ADR 0011, 0013).
     const channel = this.#client
       .channel(CHANNEL)
       .on('broadcast', { event: 'changed' }, ({ payload }) => this.#notifySoon((payload as { table: ChangedTable }).table));
@@ -399,6 +429,9 @@ export class SupabaseBackend implements PlayerAccounts, GameBoard, PlayerMoves, 
     }, this.#options.notifyDebounceMs);
   }
 }
+
+const COMPLETIONS: readonly ChangedTable[] = ['player_completions', 'shared_completions'];
+const PHOTO_OWNERS: readonly ChangedTable[] = [...COMPLETIONS, 'posts', 'players'];
 
 const ALL_TABLES: readonly ChangedTable[] = [
   'actions',

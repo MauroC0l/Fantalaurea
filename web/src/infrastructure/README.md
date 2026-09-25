@@ -9,9 +9,11 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
     `SessionExpiredError`.
   - Ciò che tocca i file passa dalla Edge Function `photos` (ADR 0008).
   - I link firmati (12 ore) sono tenuti in una cache: ogni foto si chiede una volta sola.
-  - `onChange` ascolta il canale broadcast `fantalaurea`, dove il database manda solo il nome
-    della tabella cambiata (ADR 0011). Raggruppa i segnali (300 ms) e al ritorno in primo
-    piano del telefono segnala tutte le tabelle.
+  - Dopo ogni scrittura riuscita annuncia sul canale broadcast `fantalaurea` quali tabelle
+    sono cambiate (via HTTP se il canale non è collegato) e avvisa subito anche le schermate
+    di questo telefono (ADR 0013).
+  - `onChange` ascolta quel canale, raggruppa i segnali (300 ms) e al ritorno in primo piano
+    del telefono segnala tutte le tabelle.
   - Nel log admin invia lo user agent del telefono.
 - `supabase/supabase-backend.db-test.ts`: test d'integrazione contro lo stack locale
   (`npm run test:db`, ricrea il database locale).
@@ -29,4 +31,5 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
   funzione in `supabase/`.
 - Usato da: `app/compose.ts` soltanto.
 - Dati posseduti: la chiave `fantalaurea:session-token` in `localStorage`, la cache dei link.
-- Ascolta: il canale broadcast `fantalaurea`. Pubblica: le notifiche di `GameBoard.onChange`.
+- Ascolta e pubblica: il canale broadcast `fantalaurea` (solo nomi di tabelle). Pubblica anche
+  le notifiche di `GameBoard.onChange`.
