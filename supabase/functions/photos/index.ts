@@ -6,6 +6,10 @@ const BUCKET = 'photos';
 // Long enough for a whole evening: phones cache links instead of asking again.
 const LINK_TTL_SECONDS = 12 * 60 * 60;
 const MAX_LINKS_PER_REQUEST = 100;
+// Storage refuses to sign or delete too many files in one request: an evening's album is split.
+const STORAGE_BATCH = 200;
+// PostgREST returns at most this many rows per call (max_rows in config.toml, the same on the hosted project).
+const ROWS_PER_PAGE = 1000;
 const MAX_FULL_BYTES = 15 * 1024 * 1024;
 const MAX_THUMBNAIL_BYTES = 1024 * 1024;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -173,9 +177,7 @@ async function chatMedia(token: unknown, messageIds: unknown): Promise<Reply> {
     row.kind === 'photo' ? [chatPhotoPath(row.media_id), chatThumbnailPath(row.media_id)] : [voicePath(row.media_id, row.media_mime)],
   );
   if (paths.length === 0) return { status: 'ok', media: {} };
-  const { data, error } = await db.storage.from(CHAT_BUCKET).createSignedUrls(paths, LINK_TTL_SECONDS);
-  if (error) throw error;
-  const byPath = new Map(data.map((item) => [item.path, withoutHost(item.signedUrl)]));
+  const byPath = await signPaths(CHAT_BUCKET, paths);
   const media = Object.fromEntries(
     rows.map((row) => [
       row.message_id,
@@ -234,9 +236,7 @@ async function uploadTo(bucket: string, path: string, file: File, contentType: s
 }
 
 async function removeChatFiles(paths: string[]): Promise<void> {
-  if (paths.length === 0) return;
-  const { error } = await db.storage.from(CHAT_BUCKET).remove(paths);
-  if (error) console.error('orphan chat files', paths, error);
+  await removePaths(CHAT_BUCKET, paths);
 }
 
 async function completeWithPhoto(form: FormData): Promise<Reply> {
@@ -332,7 +332,7 @@ async function deletePost(token: unknown, postId: unknown): Promise<Reply> {
 
 async function album(token: unknown): Promise<Reply> {
   if (!(await isAdmin(token))) return UNAUTHORIZED;
-  const rows = await call<AlbumRow[]>('svc_photos', {});
+  const rows = await allAlbumRows();
   const signed = await signedLinks(rows.map((row) => row.photo_id));
   return {
     status: 'ok',
@@ -390,10 +390,7 @@ async function uploadPair(form: FormData): Promise<string | null> {
  */
 async function signedLinks(photoIds: string[]): Promise<Map<string, { thumbnailUrl: string; fullUrl: string }>> {
   if (photoIds.length === 0) return new Map();
-  const paths = photoIds.flatMap((id) => [thumbnailPath(id), fullPath(id)]);
-  const { data, error } = await db.storage.from(BUCKET).createSignedUrls(paths, LINK_TTL_SECONDS);
-  if (error) throw error;
-  const byPath = new Map(data.map((item) => [item.path, withoutHost(item.signedUrl)]));
+  const byPath = await signPaths(BUCKET, photoIds.flatMap((id) => [thumbnailPath(id), fullPath(id)]));
   return new Map(
     photoIds.map((id) => [id, { thumbnailUrl: byPath.get(thumbnailPath(id))!, fullUrl: byPath.get(fullPath(id))! }]),
   );
@@ -439,9 +436,42 @@ async function upload(path: string, file: File): Promise<void> {
 
 async function removeFiles(photoIds: (string | null)[]): Promise<void> {
   const paths = photoIds.filter((id): id is string => id !== null).flatMap((id) => [fullPath(id), thumbnailPath(id)]);
-  if (paths.length === 0) return;
-  const { error } = await db.storage.from(BUCKET).remove(paths);
-  if (error) console.error('orphan photo files', paths, error);
+  await removePaths(BUCKET, paths);
+}
+
+async function allAlbumRows(): Promise<AlbumRow[]> {
+  const rows: AlbumRow[] = [];
+  for (;;) {
+    const { data, error } = await db.rpc('svc_photos', {}).range(rows.length, rows.length + ROWS_PER_PAGE - 1);
+    if (error) throw error;
+    rows.push(...(data as AlbumRow[]));
+    if (data.length < ROWS_PER_PAGE) return rows;
+  }
+}
+
+/** Host-less signed links by path. */
+async function signPaths(bucket: string, paths: string[]): Promise<Map<string, string>> {
+  const batches = await Promise.all(
+    batchesOf(paths).map(async (batch) => {
+      const { data, error } = await db.storage.from(bucket).createSignedUrls(batch, LINK_TTL_SECONDS);
+      if (error) throw error;
+      return data.map((item) => [item.path, withoutHost(item.signedUrl)] as const);
+    }),
+  );
+  return new Map(batches.flat().filter((entry): entry is readonly [string, string] => entry[0] !== null));
+}
+
+async function removePaths(bucket: string, paths: string[]): Promise<void> {
+  for (const batch of batchesOf(paths)) {
+    const { error } = await db.storage.from(bucket).remove(batch);
+    if (error) console.error('orphan files', bucket, batch, error);
+  }
+}
+
+function batchesOf<T>(items: T[]): T[][] {
+  return Array.from({ length: Math.ceil(items.length / STORAGE_BATCH) }, (_, i) =>
+    items.slice(i * STORAGE_BATCH, (i + 1) * STORAGE_BATCH),
+  );
 }
 
 function fullPath(photoId: string): string {

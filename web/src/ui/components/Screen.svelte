@@ -4,14 +4,16 @@
   interface Props {
     /** Leaves room at the bottom for the floating tab bar. */
     withTabBar?: boolean;
+    /** For grids of photos: on a computer they use the whole window. */
+    wide?: boolean;
     children: Snippet;
     footer?: Snippet;
   }
 
-  let { withTabBar = false, children, footer }: Props = $props();
+  let { withTabBar = false, wide = false, children, footer }: Props = $props();
 </script>
 
-<main class="screen" class:with-tabbar={withTabBar} class:with-footer={!!footer}>
+<main class="screen" class:with-tabbar={withTabBar} class:with-footer={!!footer} class:wide>
   {@render children()}
 </main>
 {#if footer}
@@ -21,12 +23,17 @@
 <style>
   .screen {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     gap: var(--space-6);
     width: min(100%, var(--content-max));
     min-height: 100dvh;
     margin: 0 auto;
     padding: calc(var(--space-7) + var(--safe-top)) var(--space-4) calc(var(--space-7) + var(--safe-bottom));
+  }
+
+  .wide {
+    width: min(100%, var(--content-wide));
   }
 
   .with-tabbar {

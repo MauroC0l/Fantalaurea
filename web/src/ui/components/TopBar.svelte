@@ -26,7 +26,7 @@
     gap: var(--space-3);
     margin: calc(-1 * var(--space-7) - var(--safe-top)) calc(-1 * var(--space-4)) 0;
     padding: calc(var(--space-3) + var(--safe-top)) var(--space-4) var(--space-3);
-    background: var(--color-surface-overlay);
+    background: var(--color-surface-bar);
     border-bottom: 1px solid var(--color-border);
     backdrop-filter: blur(var(--blur-glass));
     -webkit-backdrop-filter: blur(var(--blur-glass));

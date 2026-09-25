@@ -6,16 +6,25 @@ Use case dell'app e interfacce (porte) verso ciò che sta fuori: backend, foto, 
 | Porta | Operazioni |
 |---|---|
 | `PlayerAccounts` | `checkSecretWord`, `join` (parola + identità; l'admin entra senza parola), `resume` |
-| `GameBoard` (letture con token) | `catalog`, `completionsOf`, `participants`, `feed`, `profile`, `likers`, `onChange(tabella)` |
+| `GameBoard` (letture con token) | `catalog`, `completionsOf`, `participants`, `feed`, `profile`, `likers`, `features` (funzioni accese, ADR 0014), `onChange(tabella)` |
 | `PhotoLinkProvider` | `links`: link firmati per id di foto |
 | `PlayerMoves` | `complete`, `completeWithPhoto`, `undo`, `deleteOwnPhoto`, `toggleLike`, `createPost`, `deletePost`, `updateBio`, `setAvatar` |
-| `EveningAdmin` | azioni (`add`/`update`/`remove`), `album`, `deletePhoto`, `secretWord`, `setSecretWord`, `accessLog`, `resetEvening` |
+| `EveningAdmin` | azioni (`add`/`update`/`remove`), `album`, `deletePhoto`, `secretWord`, `setSecretWord`, `accessLog`, `setFeature`, `resetEvening` |
+| `Chat` (ADR 0015) | letture: `conversations`, `conversation`, `messages`, `mediaLinks` (`ChatMediaLinks`: link del file e, per le foto, della miniatura); scritture: `open`, `sendText`, `sendPhoto`, `sendVoice`, `deleteMessage`, `markRead`; `onInbox(listener)`: una conversazione del giocatore è cambiata |
+| `VoiceRecorder` | `start` (chiede il microfono la prima volta; `RecordingFailure`: `denied` \| `unsupported`), `stop` (restituisce la registrazione, anche se si è fermata da sola al limite), `cancel` |
 | `PhotoProcessor` | `prepare(file, 'original' \| 'square')` |
 | `PhotoExporter` | `canShare`, `share`, `shareText`, `download`, `downloadZip` |
 | `Clipboard`, `SessionStore`, `Haptics` | appunti, token, vibrazione |
 
 Le letture con un token non più valido rifiutano con `SessionExpiredError`, così le
-schermate riportano all'ingresso. Le scritture restituiscono un `Result`.
+schermate riportano all'ingresso. Le scritture restituiscono un `Result`: `WriteFailure`
+(`unauthorized` | `rejected` | `unavailable`), oppure `FeatureFailure` (= `WriteFailure` |
+`disabled`) per ciò che un interruttore dell'admin può bloccare (post e chat).
+
+`ChangedTable` elenca le tabelle annunciate da `onChange`, compresa `evening_settings` (parola
+e interruttori). Le pagine hanno una dimensione fissa, `FEED_PAGE_SIZE` = 20 e
+`CHAT_PAGE_SIZE` = 40: una pagina più corta vuol dire che l'elenco è completo, così non serve
+una richiesta in più per scoprire che non c'è altro.
 
 ## Use case
 - `join-game.ts`: valida l'identità, entra (con la risposta a "sei tu?"), salva il token.
@@ -24,6 +33,9 @@ schermate riportano all'ingresso. Le scritture restituiscono un `Result`.
 - `save-action.ts`: crea o modifica un'azione (admin).
 - `social.ts`: `publishPost` (didascalia ≤ 300), `changeAvatar` (ritaglio quadrato),
   `saveBio` (≤ 500).
+
+La chat non ha use case qui: le sue regole (testo valido, unione dei messaggi) sono funzioni
+pure di `domain/chat.ts`, usate direttamente dallo stato in `features/chat/`.
 
 ## Relazioni
 - Dipende da: `domain/`.

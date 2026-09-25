@@ -8,6 +8,8 @@
   --color-surface: rgb(255 255 255 / 0.055);
   --color-surface-strong: rgb(255 255 255 / 0.1);
   --color-surface-overlay: rgb(20 12 34 / 0.72);
+  /* Bars with text on them: colourful content scrolling underneath must not show through. */
+  --color-surface-bar: rgb(20 12 34 / 0.93);
   --color-bg-elevated: #160d25;
   --color-border: rgb(255 255 255 / 0.09);
   --color-border-strong: rgb(255 255 255 / 0.2);
@@ -76,6 +78,7 @@
 
   --tap-size: 44px;
   --content-max: 560px;
+  --content-wide: 1120px;
   --tabbar-height: 68px;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);

@@ -33,7 +33,7 @@
     </EmptyState>
   {:else if list.conversations.length === 0}
     <EmptyState icon="chat" title="Ancora nessuna chat">
-      <p>Apri il profilo di qualcuno dalla classifica e premi "Invia messaggio".</p>
+      <p>Apri il profilo di qualcuno e premi "Invia messaggio".</p>
     </EmptyState>
   {:else}
     <ul class="list">
@@ -65,6 +65,7 @@
 <style>
   .list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-2);
     list-style: none;
   }
@@ -82,6 +83,7 @@
   .text {
     flex: 1;
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 2px;
     min-width: 0;
   }

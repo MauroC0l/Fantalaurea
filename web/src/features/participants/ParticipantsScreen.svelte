@@ -49,7 +49,8 @@
               </div>
               <p class="done">
                 <span class="done-number"><AnimatedNumber value={participant.points} /></span>
-                <span class="done-label">punti · {participant.actionsDone} {participant.actionsDone === 1 ? 'azione' : 'azioni'}</span>
+                <span class="done-label">punti</span>
+                <span class="done-label">{participant.actionsDone} {participant.actionsDone === 1 ? 'azione' : 'azioni'}</span>
               </p>
             </div>
           </Surface>
@@ -68,6 +69,7 @@
 <style>
   .list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--space-3);
     list-style: none;
   }
@@ -119,7 +121,9 @@
   .done {
     display: grid;
     justify-items: end;
+    gap: 2px;
     line-height: 1;
+    white-space: nowrap;
   }
 
   .done-number {

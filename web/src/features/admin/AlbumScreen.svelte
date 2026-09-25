@@ -97,7 +97,7 @@
   }
 </script>
 
-<Screen withTabBar>
+<Screen withTabBar wide>
   <ScreenHeader eyebrow="Solo per l'admin" title="Album">
     <p>{album.photos.length === 1 ? '1 foto' : `${album.photos.length} foto`} della serata</p>
     {#snippet trailing()}
@@ -171,7 +171,9 @@
           <Badge tone="neutral">{viewing.photo.source === 'post' ? 'Post in bacheca' : 'Azione'}</Badge>
           <span class="when"><Icon name="clock" size={14} /> {formatDateTime(viewing.photo.takenAt)}</span>
         </div>
-        <p class="lightbox-title">{viewing.photo.title}</p>
+        {#if viewing.photo.source === 'action'}
+          <p class="lightbox-title">{viewing.photo.title}</p>
+        {/if}
         <div class="author">
           <Avatar name={viewing.photo.nickname} size="sm" />
           <span class="names">
@@ -179,6 +181,9 @@
             <span class="real-name">{viewing.photo.realName}</span>
           </span>
         </div>
+        {#if viewing.photo.source === 'post' && viewing.photo.title}
+          <p class="post-caption">{viewing.photo.title}</p>
+        {/if}
       </div>
     {/if}
   {/snippet}
@@ -232,9 +237,15 @@
 
   .grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--space-2);
     list-style: none;
+  }
+
+  @media (min-width: 700px) {
+    .grid {
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    }
   }
 
   .caption {
@@ -274,6 +285,13 @@
     font-size: var(--text-lg);
     font-weight: var(--weight-black);
     line-height: var(--leading-tight);
+    overflow-wrap: anywhere;
+  }
+
+  /* A caption is text to read, not a heading: it can be three hundred characters long. */
+  .post-caption {
+    color: var(--color-text);
+    line-height: var(--leading-normal);
     overflow-wrap: anywhere;
   }
 

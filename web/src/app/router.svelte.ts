@@ -13,7 +13,11 @@ export class HashRouter {
   current = $state<Route | null>(parse(location.hash));
 
   constructor() {
-    addEventListener('hashchange', () => (this.current = parse(location.hash)));
+    // One document hosts every screen: without this, a new screen opens where the old one was scrolled.
+    addEventListener('hashchange', () => {
+      this.current = parse(location.hash);
+      scrollTo({ top: 0 });
+    });
   }
 
   is(name: RouteName): boolean {

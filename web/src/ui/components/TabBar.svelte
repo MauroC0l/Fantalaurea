@@ -41,7 +41,7 @@
     height: var(--tabbar-height);
     padding: var(--space-1);
     border-radius: var(--radius-pill);
-    background: var(--color-surface-overlay);
+    background: var(--color-surface-bar);
     border: 1px solid var(--color-border-strong);
     box-shadow: var(--shadow-card);
     transform: translateX(-50%);
