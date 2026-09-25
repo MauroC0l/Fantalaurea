@@ -123,6 +123,10 @@
     justify-content: flex-start;
     margin-top: 2px;
     touch-action: pan-y;
+    /* Dragging a bubble to reply moves it past the screen edge: it must slide under the edge,
+       not widen the page (a wider page pushes the composer's close button off screen). */
+    overflow-x: clip;
+    overflow-clip-margin: 4px;
   }
 
   .line.group-start {

@@ -48,7 +48,7 @@ aggiunge qui, non nella schermata che per prima ne ha bisogno.
 | `Thumbnail` | miniatura quadrata con caricamento animato |
 | `PhotoFrame` | foto della bacheca (4:5): un tocco apre, doppio tocco mette like con cuore animato |
 | `LikeButton` | cuore + "Piace a N persone" (apre l'elenco) |
-| `MessageBubble` | fumetto di un messaggio (i miei a destra, colorati), con l'ora in basso a destra come su WhatsApp. È un `div`, non un pulsante: un pulsante disattivato bloccava il play dei vocali che conteneva. `groupStart` / `groupEnd` (i messaggi di fila si stringono), `media` (foto a filo, ora sopra la foto), `voice`, `deleted`, `edited`, `forwarded`, `quote` (il messaggio a cui risponde, toccabile), `highlighted`; `onmenu` alla pressione lunga, `onreply` trascinandolo a destra |
+| `MessageBubble` | fumetto di un messaggio (i miei a destra, colorati), con l'ora in basso a destra come su WhatsApp. È un `div`, non un pulsante: un pulsante disattivato bloccava il play dei vocali che conteneva. `groupStart` / `groupEnd` (i messaggi di fila si stringono), `media` (foto a filo, ora sopra la foto), `voice`, `deleted`, `edited`, `forwarded`, `quote` (il messaggio a cui risponde, toccabile), `highlighted`; `onmenu` alla pressione lunga, `onreply` trascinandolo a destra. La riga ritaglia lo spostamento (`overflow-x: clip`): senza, trascinare un fumetto attaccato al bordo allargava la pagina e spingeva fuori schermo la X del compositore |
 | `ComposerBanner` | striscia sopra il campo di testo: a cosa risponde o cosa corregge il prossimo messaggio, con "Annulla" |
 | `DayDivider` | separatore tra i giorni ("Oggi", "Ieri", "ven 25 set") |
 | `TypingIndicator` | tre puntini in un fumetto: "sta scrivendo" |
