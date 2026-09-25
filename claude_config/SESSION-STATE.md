@@ -33,10 +33,9 @@ segreta. Si usa quasi solo da telefono. Prima festa: **2026-10-02**.
 - Azione "foto ai genitali" eliminata (decisione dell'utente, rischio art. 612-ter).
 
 ## Stato attuale (verificato 2026-09-25 notte)
-- In produzione:
-  - tutto fino ai sondaggi (commit a39417d);
-  - migrazioni e funzione `photos` fino alle sfide (`20260926000100_hidden_poll_votes.sql`).
-- **Sito delle sfide ed export a parti: nel commit in arrivo** (vedi `git log`).
+- Tutto in produzione e verificato sul sito vero (commit d57c1d3): richieste del 2026-09-25 sera
+  completate. Nella festa ci sono anche 4 sondaggi e 3 sfide dimostrativi; `Il Demo` può creare
+  sondaggi e sfide.
 - Test: 45 unitari, 34 d'integrazione (`npm run test:db`), tutti verdi.
 - **La festa di produzione è piena di dati finti** (richiesta dell'utente):
   - 126 giocatori, 1316 completamenti (458 con foto), circa 90 post, 2775 like, circa 75 chat;
