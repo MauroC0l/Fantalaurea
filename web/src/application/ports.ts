@@ -5,6 +5,7 @@ import type { AccessLogEntry, JoinRequest } from '../domain/evening';
 import type { FeatureName, Features } from '../domain/features';
 import type { FeedItem, Liker } from '../domain/feed';
 import type { AdminSession, ManagedPlayer, Participant, Permission, Permissions, PlayerSession, Session } from '../domain/player';
+import type { Challenge, ChallengeDraft, ChallengeEdit } from '../domain/challenge';
 import type { Poll, PollDraft } from '../domain/poll';
 import type { Profile } from '../domain/profile';
 import type { Result } from '../domain/result';
@@ -57,6 +58,7 @@ export const CHANGED_TABLES = [
   'sessions',
   'evening_settings',
   'polls',
+  'challenges',
 ] as const;
 export type ChangedTable = (typeof CHANGED_TABLES)[number];
 
@@ -232,6 +234,20 @@ export interface Polls {
   vote(session: PlayerSession, pollId: string, optionIds: readonly string[]): Promise<Result<void, PollFailure>>;
   close(session: Session, pollId: string): Promise<Result<void, WriteFailure>>;
   remove(session: Session, pollId: string): Promise<Result<void, WriteFailure>>;
+}
+
+/** "forbidden": may not create; "ended": time is up; "full": the first N already made it. */
+export type ChallengeFailure = FeatureFailure | 'forbidden' | 'ended' | 'full';
+
+/** Timed challenges (ADR 0020). Reads reject like GameBoard's. */
+export interface Challenges {
+  list(session: Session): Promise<readonly Challenge[]>;
+  create(session: Session, draft: ChallengeDraft): Promise<Result<string, ChallengeFailure>>;
+  update(session: Session, challengeId: string, edit: ChallengeEdit): Promise<Result<void, WriteFailure>>;
+  end(session: Session, challengeId: string): Promise<Result<void, WriteFailure>>;
+  remove(session: Session, challengeId: string): Promise<Result<void, WriteFailure>>;
+  complete(session: PlayerSession, challengeId: string): Promise<Result<void, ChallengeFailure>>;
+  undo(session: PlayerSession, challengeId: string): Promise<Result<void, WriteFailure>>;
 }
 
 export interface Clipboard {

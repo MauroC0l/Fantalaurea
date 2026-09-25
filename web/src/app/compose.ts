@@ -1,6 +1,7 @@
 import type {
   Chat,
   Polls,
+  Challenges,
   Clipboard,
   EveningAdmin,
   GameBoard,
@@ -24,6 +25,7 @@ import { ChangeSignals } from '../infrastructure/supabase/change-signals';
 import { SupabaseBackend } from '../infrastructure/supabase/supabase-backend';
 import { SupabaseChat } from '../infrastructure/supabase/supabase-chat';
 import { SupabasePolls } from '../infrastructure/supabase/supabase-polls';
+import { SupabaseChallenges } from '../infrastructure/supabase/supabase-challenges';
 import { createSupabaseClient } from '../infrastructure/supabase/supabase-client';
 import { VOICE_MAX_MS } from '../domain/chat';
 
@@ -35,6 +37,7 @@ export interface AppDependencies {
   readonly links: PhotoLinkProvider;
   readonly chat: Chat;
   readonly polls: Polls;
+  readonly challenges: Challenges;
   readonly recorder: VoiceRecorder;
   readonly photos: PhotoProcessor;
   readonly exporter: PhotoExporter;
@@ -67,6 +70,7 @@ export function composeApp(): AppDependencies {
     links: backend,
     chat: new SupabaseChat(client, baseUrl),
     polls: new SupabasePolls(client, signals),
+    challenges: new SupabaseChallenges(client, signals),
     recorder: browserVoiceRecorder(VOICE_MAX_MS),
     photos: canvasPhotoProcessor(PHOTO_QUALITY),
     exporter: browserPhotoExporter(),

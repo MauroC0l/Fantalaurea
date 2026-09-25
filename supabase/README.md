@@ -2,8 +2,8 @@
 
 Schema, regole di accesso e funzioni del backend (Postgres su Supabase). Motivazioni negli
 ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 0015 (chat),
-0016 (chat come WhatsApp), 0018 (utenti: blocco, permessi, limite di 100 foto) e 0019
-(sondaggi).
+0016 (chat come WhatsApp), 0018 (utenti: blocco, permessi, limite di 100 foto), 0019
+(sondaggi) e 0020 (sfide a tempo).
 
 ## Contenuto
 - `migrations/`: lo schema, versionato. Ogni modifica è un file nuovo, mai la modifica di
@@ -26,6 +26,13 @@ ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 
   `poll_votes`, enum `poll_results`, interruttore `polls_enabled` (`features` e
   `admin_set_feature` accettano `polls`); `svc_reset_evening` ora cancella anche i sondaggi,
   perché quelli dell'admin non hanno un giocatore da cui sparire a cascata.
+- `migrations/20260926000000_challenges.sql` (ADR 0020): sfide a tempo. Tabelle `challenges` e
+  `challenge_completions`, interruttore `challenges_enabled` (`features` e `admin_set_feature`
+  accettano `challenges`); `participants` somma anche completamenti e punti delle sfide;
+  `svc_reset_evening` cancella anche le sfide, per lo stesso motivo dei sondaggi.
+- `migrations/20260926000100_hidden_poll_votes.sql`: `vote_poll` rifiuta (`rejected`) un
+  sondaggio creato da un bloccato. È già nascosto dall'elenco, ma senza questo controllo lo si
+  potrebbe ancora votare conoscendone l'id.
 - `functions/photos/`: la Edge Function, unico punto che tocca i file (foto e file della chat).
 - `config.toml`: configurazione dello stack locale.
 
@@ -41,7 +48,7 @@ ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 
 | `likes` | like su post e completamenti (`target_id`) |
 | `sessions` | token di giocatori e admin |
 | `admin_credentials` | nickname e nome vero dell'admin |
-| `evening_settings` | la parola segreta della serata e gli interruttori `actions_enabled`, `feed_enabled`, `chat_enabled`, `leaderboard_enabled`, `polls_enabled` (accesi di base; sopravvivono a "Termina e ricomincia") |
+| `evening_settings` | la parola segreta della serata e gli interruttori `actions_enabled`, `feed_enabled`, `chat_enabled`, `leaderboard_enabled`, `polls_enabled`, `challenges_enabled` (accesi di base; sopravvivono a "Termina e ricomincia") |
 | `admin_access_log` | ogni accesso admin, con il dispositivo |
 | `conversations` | una conversazione per coppia di giocatori (`player_a < player_b`), con l'ultima lettura di ciascuno (per i non letti) e, per lato a/b, `cleared_*_at` (i messaggi fino a lì non si vedono più: "Svuota"), `removed_*` (fuori dall'elenco finché non arriva un messaggio nuovo: "Cancella chat"), `marked_*` ("da leggere", vale un non letto). Due persone per conversazione: due colonne bastano, una tabella a parte sarebbe troppo |
 | `messages` | messaggi: testo (≤ 1000 caratteri), foto o vocale (60 s nell'app, il database accetta fino a 65 s di tolleranza); il tipo (`kind`) decide quali colonne sono piene (vincolo `messages_shape`). `reply_to` (messaggio citato, della stessa conversazione), `edited_at` (solo testi), `forwarded`, `deleted_at`: "elimina per tutti" è una cancellazione morbida, la riga resta senza testo né file, così le risposte che la citano non si rompono |
@@ -49,11 +56,13 @@ ADR 0002, 0005, 0007, 0008, 0010, 0011, 0012, 0013, 0014 (funzioni attivabili), 
 | `polls` | sondaggi: domanda, autore (`creator_id`, `null` = l'admin), regole (`anonymous`, `multiple`, `results` di tipo `poll_results`: `always` / `after-vote` / `after-close`, `vote_change`, `close_when_all_voted`), `closes_at` (scadenza a tempo), `closed_at` (chiuso a mano o all'ultimo voto). **Un sondaggio a tempo non viene mai segnato chiuso:** lo è quando `closes_at` è passato; chi legge la tabella a mano deve ragionare come `poll_is_closed` |
 | `poll_options` | da 2 a 10 opzioni per sondaggio, ordinate da `position` |
 | `poll_votes` | una riga per opzione scelta (opzione, giocatore): un voto multiplo sono più righe |
+| `challenges` | sfide a tempo: titolo (2–40), descrizione (≤ 300), punti (1–100), `winners_limit` (1–50, `null` = tutti quelli che la completano in tempo), `starts_at`, `ends_at`, autore (`creator_id`, `null` = l'admin). Come un sondaggio a tempo, **una sfida finita non viene segnata**: lo è quando `ends_at` è passato |
+| `challenge_completions` | una riga per giocatore e sfida, con `completed_at`: l'ordine di arrivo decide chi sta tra i primi N. **I punti non si salvano:** si calcolano a ogni lettura (`challenge_points_of`), così cambiare limite o punti, annullare o eliminare non richiede ricalcoli |
 
 Le foto stanno nel bucket PRIVATO `photos` (`full/<id>.jpg`, `thumb/<id>.jpg`); i file della
 chat nel bucket PRIVATO `chat` (`photo/<id>.jpg`, `photo/<id>-thumb.jpg`, `voice/<id>.<ext>`).
-Conversazioni, messaggi e voti spariscono con i giocatori (cascade) a "Termina e ricomincia"; i
-sondaggi li cancella `svc_reset_evening` esplicitamente.
+Conversazioni, messaggi, voti e completamenti delle sfide spariscono con i giocatori (cascade) a
+"Termina e ricomincia"; sondaggi e sfide li cancella `svc_reset_evening` esplicitamente.
 
 ## API
 - RPC senza token: `check_secret_word`, `join_game`, `resume_session`.
@@ -86,7 +95,26 @@ sondaggi li cancella `svc_reset_evening` esplicitamente.
     con `close_when_all_voted`, se hanno votato tutti i giocatori non bloccati scrive
     `closed_at`: chi entra dopo non riapre il sondaggio.
   - `close_poll` e `delete_poll` (autore o admin) → `ok`, `unauthorized`, `rejected`.
-  - I voti dei bloccati non contano e i sondaggi creati da loro non si vedono.
+  - I voti dei bloccati non contano e i sondaggi creati da loro non si vedono né si votano.
+- Sfide a tempo (ADR 0020), con il token di giocatori e admin:
+  - `challenges` (jsonb): le sfide visibili, in corso prima (quella che scade prima in testa),
+    poi le finite. Ognuna porta `ended`, `creator`, `canManage`, `completions`, `mine`
+    (`{at, rank}`: quando e in che posizione l'ho fatta, `null` se no) e `winners` (i primi
+    `winnersLimit`, al massimo 50, bloccati esclusi). Le sfide dei bloccati non si vedono.
+  - `create_challenge` → `{status, challengeId}`, `status` tra `ok`, `unauthorized`, `forbidden`
+    (giocatore senza `can_create_challenges`), `rejected` (valori fuori dai vincoli, durata fuori
+    da 1–240 minuti), `disabled`.
+  - `update_challenge` (autore o admin) → `ok`, `unauthorized`, `rejected`. `p_extend_minutes`
+    `null` lascia la scadenza; un numero la sposta ad **adesso** + minuti e riapre anche una
+    sfida finita. Abbassare il limite toglie i punti a chi resta fuori.
+  - `end_challenge` (scadenza ad adesso) e `delete_challenge` (toglie i punti a chi l'aveva
+    fatta), autore o admin → `ok`, `unauthorized`, `rejected`.
+  - `complete_challenge` (solo giocatori: l'admin non partecipa) → `ok` (anche se già fatta),
+    `unauthorized`, `disabled`, `ended`, `full` (i primi N l'hanno già presa), `rejected`.
+    **Blocca la riga della sfida** (`for update`) mentre conta: due telefoni che premono insieme
+    non diventano entrambi l'N-esimo.
+  - `undo_challenge` → `ok` o `rejected`: si annulla solo mentre la sfida è in corso, dopo il
+    risultato resta.
 - Blocco (ADR 0018): i contenuti di un bloccato si nascondono, non si cancellano, così
   "Sblocca" rimette tutto. `join_game` risponde `blocked` se il nickname **o il nome vero**
   coincide con quello di un bloccato (un nickname nuovo non basta per rientrare). `feed`,
@@ -99,7 +127,8 @@ sondaggi li cancella `svc_reset_evening` esplicitamente.
   `svc_forward_message` (una foto inoltrata a N chat vale N) rispondono `photo-limit`.
 - Con una funzione spenta il server rifiuta con `disabled`: `svc_create_post` con la bacheca
   spenta, `open_conversation`, `send_message` e `svc_send_media` con la chat spenta,
-  `create_poll` e `vote_poll` con i sondaggi spenti.
+  `create_poll` e `vote_poll` con i sondaggi spenti, `create_challenge` e `complete_challenge`
+  con le sfide spente (modificare, terminare ed eliminare quelle esistenti resta possibile).
 - Edge Function `photos`: completamento con foto, post, foto profilo, link firmati, annulla,
   elimina foto / post, album, elimina azione, azzera serata (svuota anche il bucket `chat`);
   per la chat `chat-photo` e `chat-voice` (accettano `replyTo`), `chat-media` (link firmati
@@ -120,6 +149,10 @@ sondaggi li cancella `svc_reset_evening` esplicitamente.
   costante 100 sta qui, speculare a `PHOTO_LIMIT` del dominio). Per i sondaggi:
   `polls_enabled()`, `poll_is_closed` (chiuso a mano, all'ultimo voto o scaduto),
   `can_manage_poll` (admin o autore) e `poll_voters` (quanti hanno votato, bloccati esclusi).
+  Per le sfide: `challenges_enabled()`, `challenge_points_of` (somma i punti dei completamenti
+  arrivati tra i primi `winners_limit`), `challenges_done_by` (quante ne ha fatte, anche fuori
+  dai primi N: contano tra le azioni fatte), `can_manage_challenge` (admin o autore) e
+  `may_create_challenges` (admin o giocatore con il permesso).
 - Chi invia, modifica, elimina o inoltra un messaggio riceve nella risposta la `inbox_key` del
   destinatario, per avvisarlo (vedi sotto).
 
@@ -145,7 +178,7 @@ persone con cui ha una chat: chi guarda i canali pubblici non scopre chi scrive 
 
 ## Relazioni
 - Usato da: `web/src/infrastructure/supabase/` (`supabase-backend.ts`, `supabase-chat.ts`,
-  `supabase-polls.ts`, `photos-function.ts`), l'unico modulo che conosce queste tabelle e funzioni.
+  `supabase-polls.ts`, `supabase-challenges.ts`, `photos-function.ts`), l'unico modulo che conosce queste tabelle e funzioni.
 - Attenzione: cancellare righe dalla dashboard lascia file orfani nei bucket; usare l'app.
 
 ## Comandi (da `web/`, serve Docker)

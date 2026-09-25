@@ -34,6 +34,8 @@ const RELEVANT: ReadonlySet<ChangedTable> = new Set([
   'shared_completions',
   'sessions',
   'evening_settings',
+  // Challenge points count in the ranking.
+  'challenges',
 ]);
 
 /** Live view of one player's evening: the actions still to do, those done, and the ranking. */

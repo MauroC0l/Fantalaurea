@@ -12,6 +12,9 @@
   import { AdminState } from './features/admin/admin-state.svelte';
   import UsersScreen from './features/admin/UsersScreen.svelte';
   import PollsScreen from './features/polls/PollsScreen.svelte';
+  import ChallengesSection from './features/challenges/ChallengesSection.svelte';
+  import { ChallengesState } from './features/challenges/challenges-state.svelte';
+  import type { Challenge } from './domain/challenge';
   import { PollsState } from './features/polls/polls-state.svelte';
   import { UsersState } from './features/admin/users-state.svelte';
   import { AlbumState } from './features/admin/album-state.svelte';
@@ -48,8 +51,24 @@
     | { kind: 'offline' }
     /** secretWord: null = not given yet; '' = the admin's way in, without it. */
     | { kind: 'anonymous'; secretWord: string | null }
-    | { kind: 'playing'; game: GameState; feed: FeedState; chatList: ChatListState; polls: PollsState; links: PhotoLinksCache }
-    | { kind: 'administering'; admin: AdminState; album: AlbumState; users: UsersState; polls: PollsState; links: PhotoLinksCache };
+    | {
+        kind: 'playing';
+        game: GameState;
+        feed: FeedState;
+        chatList: ChatListState;
+        polls: PollsState;
+        challenges: ChallengesState;
+        links: PhotoLinksCache;
+      }
+    | {
+        kind: 'administering';
+        admin: AdminState;
+        album: AlbumState;
+        users: UsersState;
+        polls: PollsState;
+        challenges: ChallengesState;
+        links: PhotoLinksCache;
+      };
 
   const deps = composeApp();
   const router = new PathRouter();
@@ -120,7 +139,10 @@
 
   const playerTabs = $derived(
     PLAYER_TABS.filter((tab) => tab.feature === null || features[tab.feature]).map((tab) =>
-      tab.id === 'chat' && app.kind === 'playing' ? { ...tab, badge: app.chatList.unread } : tab,
+      app.kind !== 'playing' ? tab
+      : tab.id === 'chat' ? { ...tab, badge: app.chatList.unread }
+      : tab.id === 'azioni' && features.challenges ? { ...tab, badge: app.challenges.todo }
+      : tab,
     ),
   );
 
@@ -183,8 +205,10 @@
         album: new AlbumState(deps, session),
         users,
         polls: new PollsState(deps, session, expired),
+        challenges: new ChallengesState(deps, session, { onSessionLost: expired, onNew: () => {} }),
         links: new PhotoLinksCache(deps.links, session, expired),
       };
+      app.challenges.start();
       void admin.start();
       if (!['album', 'serata', 'utenti', 'sondaggi'].includes(router.current?.name ?? '')) router.go({ name: 'admin' }, { replace: true });
       return;
@@ -192,12 +216,20 @@
     play(session);
   }
 
+  /** Only phones with the app open hear about it: there are no push notifications (ADR 0020). */
+  function announceChallenge(challenge: Challenge) {
+    deps.haptics.pulse('success');
+    toasts.show(`Nuova sfida: ${challenge.title} · +${challenge.points}`, 'info');
+  }
+
   function play(session: PlayerSession) {
     const links = new PhotoLinksCache(deps.links, session, sessionLost);
     const game = new GameState(deps, session, { onSessionLost: sessionLost });
     const feed = new FeedState(deps, session, sessionLost);
     const chatList = new ChatListState(deps, session, sessionLost);
-    app = { kind: 'playing', game, feed, chatList, polls: new PollsState(deps, session, sessionLost), links };
+    const challenges = new ChallengesState(deps, session, { onSessionLost: sessionLost, onNew: announceChallenge });
+    app = { kind: 'playing', game, feed, chatList, polls: new PollsState(deps, session, sessionLost), challenges, links };
+    challenges.start();
     void game.start();
     void feed.start();
     chatList.start();
@@ -224,8 +256,12 @@
       app.game.stop();
       app.feed.stop();
       app.chatList.stop();
+      app.challenges.stop();
     }
-    if (app.kind === 'administering') app.admin.stop();
+    if (app.kind === 'administering') {
+      app.admin.stop();
+      app.challenges.stop();
+    }
   }
 
   function acceptWord(word: string) {
@@ -308,7 +344,13 @@
           admin={app.admin}
           onlogout={() => signOut()}
           onunauthorized={() => signOut('Sessione admin scaduta: rientra')}
-        />
+        >
+          {#snippet top()}
+            {#if app.kind === 'administering' && app.admin.features.challenges}
+              <ChallengesSection challenges={app.challenges} links={app.links} canCreate />
+            {/if}
+          {/snippet}
+        </AdminActionsScreen>
       {/if}
     </div>
   {/key}
@@ -317,7 +359,13 @@
   {#key router.current}
     <div in:fade={{ duration: duration('base') }}>
       {#if playerScreen === 'azioni'}
-        <ActionsScreen game={app.game} links={app.links} haptics={deps.haptics} />
+        <ActionsScreen game={app.game} links={app.links} haptics={deps.haptics}>
+          {#snippet top()}
+            {#if app.kind === 'playing' && features.challenges}
+              <ChallengesSection challenges={app.challenges} links={app.links} canCreate={app.game.permissions.challenges} />
+            {/if}
+          {/snippet}
+        </ActionsScreen>
       {:else if playerScreen === 'classifica'}
         <ParticipantsScreen game={app.game} links={app.links} />
       {:else if playerScreen === 'sondaggi'}

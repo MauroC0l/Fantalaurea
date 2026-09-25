@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
   import type { WriteFailure } from '../../application/ports';
@@ -27,9 +28,11 @@
     admin: AdminState;
     onlogout: () => void;
     onunauthorized: () => void;
+    /** Shown above the actions, e.g. the timed challenges. */
+    top?: Snippet;
   }
 
-  let { admin, onlogout, onunauthorized }: Props = $props();
+  let { admin, onlogout, onunauthorized, top }: Props = $props();
 
   type OpenDialog =
     | { kind: 'none' }
@@ -70,6 +73,8 @@
       <IconButton icon="logout" label="Esci dal pannello" onclick={onlogout} />
     {/snippet}
   </ScreenHeader>
+
+  {#if top}{@render top()}{/if}
 
   {#if admin.status === 'loading'}
     <Loader label="Carico la serata…" />

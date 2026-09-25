@@ -19,7 +19,7 @@
   import { toasts } from '../../ui/components/toasts.svelte';
   import { duration, easing, stagger } from '../../ui/theme/motion';
   import { formatDateTime } from '../labels';
-  import type { AlbumState } from './album-state.svelte';
+  import { EXPORT_PART_SIZE, type AlbumState } from './album-state.svelte';
 
   interface Props {
     album: AlbumState;
@@ -32,7 +32,7 @@
   let confirmingDelete = $state(false);
   let deleting = $state(false);
 
-  const canShareAll = $derived(album.prepared !== null && album.exporter.canShare(album.prepared));
+  const canSharePart = $derived(album.prepared !== null && album.exporter.canShare(album.prepared.files));
   const canShareOne = $derived(viewing?.file ? album.exporter.canShare([viewing.file]) : false);
   const viewingIndex = $derived(viewing ? album.photos.findIndex((p) => p.id === viewing?.photo.id) : -1);
   const hasPrevious = $derived(viewingIndex > 0);
@@ -50,9 +50,9 @@
     if (!result.ok && result.error === 'unauthorized') onunauthorized();
   }
 
-  async function prepare() {
+  async function prepare(part: number) {
     try {
-      await album.prepareAll();
+      await album.prepare(part);
     } catch {
       toasts.show('Non sono riuscito a scaricare tutte le foto: riprova', 'error');
     }
@@ -119,29 +119,41 @@
     <Surface>
       <div class="export">
         <p class="export-title">Salva tutte le foto</p>
-        {#if album.preparation}
-          <p class="hint">Preparo le foto… {album.preparation.done}/{album.preparation.total}</p>
-          <ProgressBar value={album.preparation.done} max={album.preparation.total} label="Foto preparate" />
-        {:else if album.prepared}
-          <div class="buttons">
-            {#if canShareAll}
-              <Button block onclick={() => album.prepared && share(album.prepared)}>
-                <Icon name="share" size={20} /> Condividi {album.prepared.length} foto
+        {#if album.parts.length > 1}
+          <p class="hint">
+            Sono {album.photos.length}: le salvi a gruppi di {EXPORT_PART_SIZE}, uno alla volta, così il telefono non si
+            blocca.
+          </p>
+        {/if}
+        {#each album.parts as part (part.index)}
+          <div class="part" class:single={album.parts.length === 1}>
+            {#if album.parts.length > 1}
+              <p class="part-title">Parte {part.index + 1} · foto {part.from}–{part.to}</p>
+            {/if}
+            {#if album.preparation?.part === part.index}
+              <p class="hint">Preparo le foto… {album.preparation.done}/{album.preparation.total}</p>
+              <ProgressBar value={album.preparation.done} max={album.preparation.total} label="Foto preparate" />
+            {:else if album.prepared?.part === part.index}
+              {@const files = album.prepared.files}
+              <div class="buttons">
+                {#if canSharePart}
+                  <Button block onclick={() => share(files)}><Icon name="share" size={20} /> Condividi {files.length} foto</Button>
+                {/if}
+                <Button block variant="ghost" onclick={() => album.exporter.downloadZip(files, album.zipName(part.index))}>
+                  <Icon name="download" size={20} /> Scarica ZIP
+                </Button>
+              </div>
+            {:else}
+              <Button block variant={album.parts.length > 1 ? 'ghost' : 'primary'} disabled={album.preparation !== null} onclick={() => prepare(part.index)}>
+                <Icon name="download" size={20} /> Prepara {part.to - part.from + 1} foto
               </Button>
             {/if}
-            <Button
-              block
-              variant="ghost"
-              onclick={() => album.prepared && album.exporter.downloadZip(album.prepared, 'fantalaurea-foto.zip')}
-            >
-              <Icon name="download" size={20} /> Scarica ZIP
-            </Button>
           </div>
-          <p class="hint">Su iPhone: "Condividi" → "Salva immagini" le mette nel rullino.</p>
-        {:else}
-          <Button block onclick={prepare}><Icon name="download" size={20} /> Prepara {album.photos.length} foto</Button>
-          <p class="hint">Le scarico sul telefono, poi scegli se condividerle o salvarle in uno ZIP.</p>
-        {/if}
+        {/each}
+        <p class="hint">
+          Le scarico sul telefono, poi scegli se condividerle o salvarle in uno ZIP. Su iPhone: "Condividi" → "Salva
+          immagini" le mette nel rullino.
+        </p>
       </div>
     </Surface>
 
@@ -222,6 +234,23 @@
 
   .export-title {
     font-family: var(--font-display);
+    font-weight: var(--weight-bold);
+  }
+
+  .part {
+    display: grid;
+    gap: var(--space-2);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .part.single {
+    padding-top: 0;
+    border-top: none;
+  }
+
+  .part-title {
+    color: var(--color-text);
     font-weight: var(--weight-bold);
   }
 

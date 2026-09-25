@@ -7,6 +7,21 @@ Tipi e regole del gioco, in funzioni pure: niente rete, niente browser, niente S
   `difficulty`), `ActionDraft` + `validateActionDraft` (titolo 2-40, descrizione 3-300, punti
   interi 0-1000 senza segno: il segno lo decide il tipo, ADR 0010), `isSharedByEveryone`,
   `acceptsPhoto`, `pointsMagnitude`.
+- `challenge.ts` (ADR 0020):
+  - costanti: `CHALLENGE_TITLE_MAX` (40), `CHALLENGE_DESCRIPTION_MAX` (300),
+    `CHALLENGE_POINTS_MAX` (100), `CHALLENGE_DURATIONS` (5, 10, 15, 30, 60 minuti: durate fisse,
+    come per i sondaggi), `CHALLENGE_WINNERS` (tutti, 1, 3, 5, 10; `null` = tutti quelli che la
+    completano in tempo);
+  - tipi: `Challenge` (autore `null` = l'admin, `completions`, `mine` = quando e in che
+    posizione l'ho fatta, `winners` in ordine di arrivo), `ChallengeWinner`, `ChallengeDraft`
+    (con la durata), `ChallengeEdit` (senza durata: `extendMinutes` `null` lascia la scadenza,
+    un numero la fa ripartire da adesso), `ChallengeDraftError`;
+  - regole: `validateChallenge` (vale per bozza e modifica: restituisce titolo e descrizione
+    ripuliti, o tutti gli errori insieme: titolo 2–40, descrizione fino a 300, punti interi
+    1–100), `isRunning`, `secondsLeft`, `spotsLeft` (`null` senza limite), `canComplete` (in
+    corso, non ancora fatta, posti rimasti), `earnedPoints` (chi è arrivato oltre un limite
+    abbassato dopo non prende i punti), `openFor` (quante se ne possono ancora fare: il numero
+    sulla scheda Azioni).
 - `chat.ts` (ADR 0015, 0016):
   - costanti: `MESSAGE_MAX` (1000 caratteri), `VOICE_MAX_MS` (60 s), `FORWARD_MAX` (inoltro a
     5 chat al massimo), `TYPING_SIGNAL_EVERY_MS` (2,5 s tra due segnali "sta scrivendo") e
@@ -30,7 +45,7 @@ Tipi e regole del gioco, in funzioni pure: niente rete, niente browser, niente S
   l'azione).
 - `evening.ts`: `JoinRequest` (parola segreta + identità + `RealNameResolution`: `ask`,
   `takeover` del profilo esistente o `distinct`), `AccessLogEntry`.
-- `features.ts` (ADR 0014): `FeatureName` (`actions` | `chat` | `feed` | `leaderboard` | `polls`), `Features`,
+- `features.ts` (ADR 0014): `FeatureName` (`actions` | `chat` | `feed` | `leaderboard` | `polls` | `challenges`), `Features`,
   `ALL_FEATURES_ON` (il valore prima della prima lettura).
 - `feed.ts`: `FeedItem` = `PostItem` | `CompletionItem`, `LikeSummary`, `Liker`, `mergeFeed`
   (più recenti prima, la copia più fresca vince), `withLike`, `isValidCaption` (300 caratteri).

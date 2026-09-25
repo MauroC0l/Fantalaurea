@@ -4,7 +4,7 @@ Le schermate e il loro stato.
 
 ## Ingresso
 - `rules/RulesScreen`: regole brevi ("Le regole") e funzioni dell'app ("Anche nell'app", solo
-  quelle accese: prop `features`; prima di entrare si mostrano tutte). Con `onjoin` è il
+  quelle accese: prop `features`, sfide a tempo comprese; prima di entrare si mostrano tutte). Con `onjoin` è il
   benvenuto del primo accesso.
 - `join/SecretWordScreen`: parola della serata (e link "Sei l'admin?").
 - `join/JoinScreen`: nickname + nome vero (in modalità admin: "Entra come admin", con
@@ -26,6 +26,35 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 - `actions/ActionsScreen` (+ `ActionItem`, `CompletedItem`, `PhotoConfirmDialog`): punti,
   avanzamento, filtri per tipo e difficoltà, completamento con o senza foto (scattata ora o
   presa dalla galleria, con il pulsante unico `PhotoPickerButton`), annulla, elimina foto.
+  Accetta uno snippet `top`, mostrato sopra l'elenco: `App.svelte` ci mette le sfide a tempo,
+  così la schermata delle azioni non dipende dalle sfide.
+- `challenges/` (ADR 0020), la stessa cartella per giocatori e admin:
+  - `challenges-state.svelte.ts`: `ChallengesState`. **Vive per tutta la sessione**, non con la
+    schermata: lo avvia `App.svelte` all'ingresso, perché l'avviso di una sfida nuova serve
+    proprio quando non si è sulle Azioni. Derivati `running`, `finished` e `todo` (quante se ne
+    possono ancora fare, con `openFor`: il badge della scheda Azioni). Un orologio (`now`)
+    avanza ogni 5 s: i conti alla rovescia scendono e una sfida scaduta passa tra le finite
+    senza rileggere. Si rilegge quando cambiano `challenges` o `players`. `onNew` scatta solo
+    per sfide comparse **dopo la prima lettura** e in corso (quelle già aperte quando entri non
+    sono "nuove"); una sfida creata da te non è nuova per te. Il getter `player` è `null` per
+    l'admin, che crea e gestisce ma non partecipa (`complete` e `undo` rispondono
+    `unauthorized`). `create` e `update` validano con `validateChallenge` prima di chiamare il
+    server (`SaveChallengeError` = `ChallengeFailure` | errori della bozza); le operazioni su una
+    sfida la segnano `busy`. Dopo ogni risposta rilegge; `unauthorized` → sessione persa.
+  - `ChallengesSection`: la sezione "Sfide a tempo" passata come `top`. Pulsante "Nuova" solo con
+    `canCreate`; sfide in corso, poi le finite (le prime 3, "Mostra tutte (N)"). Si nasconde se
+    non ci sono sfide e non se ne possono creare. "Gestisci" apre un `ActionSheet`: Modifica,
+    Termina adesso (solo se in corso), Elimina con conferma in un `Dialog`. Ogni
+    `ChallengeFailure` ha il suo avviso.
+  - `ChallengeCard`: badge con il tempo che resta (`formatTimeLeft`) o "Finita", autore, punti,
+    a chi vanno i punti e i posti rimasti, `AvatarStack` di chi l'ha fatta; "Fatta!" e, mentre è
+    in corso, "Annulla". Dopo: "Fatta! Sei N°", oppure "fuori dai primi: niente punti" se il
+    limite è stato abbassato (`earnedPoints`).
+  - `ChallengeEditorDialog`: titolo, descrizione, `ChipGroup` per punti (5–50), vincitori
+    (`CHALLENGE_WINNERS`) e durata (`CHALLENGE_DURATIONS`). In modifica la durata offre anche
+    "Non cambiare" (predefinito): scegliere una durata fa ripartire il tempo da adesso.
+    Esporta dal `<script module>` il tipo `ChallengeForm` (`minutes` `null` = non cambiare),
+    che `ChallengesSection` trasforma in `ChallengeDraft` o `ChallengeEdit`.
 - `participants/ParticipantsScreen`: classifica per punti; ogni riga apre il profilo.
 - `profile/ProfileScreen` + `BioEditorDialog`, `profile-state.svelte.ts`: foto profilo,
   nickname, nome vero, punti, posizione (solo con `showRank`, cioè classifica accesa), bio,
@@ -94,7 +123,8 @@ e chi ci si trova sopra torna alle Azioni (la regola sta in `App.svelte`).
 - `game/game-state.svelte.ts`: catalogo, completamenti, classifica, funzioni accese
   (`features`, riletto quando cambia `evening_settings`) e `permissions` (cosa l'admin gli
   lascia creare, ADR 0018; riletto con il resto, anche quando cambia `players`);
-  `SessionExpiredError` → `onSessionLost`.
+  `SessionExpiredError` → `onSessionLost`. Si rilegge anche quando cambia `challenges`: i punti
+  delle sfide entrano in classifica.
 - `photos/photo-links.svelte.ts`: `PhotoLinksCache`, i link delle foto come stato reattivo;
   le richieste fatte durante un rendering partono insieme.
 
@@ -103,6 +133,8 @@ La scheda Sondaggi è la stessa `polls/PollsScreen` dei giocatori, con `canCreat
 e senza il pulsante "Vota".
 
 - `admin/AdminActionsScreen` + `ActionEditorDialog`: lista, crea, modifica, elimina azioni.
+  Come `ActionsScreen` accetta uno snippet `top`: in cima c'è la stessa `ChallengesSection` dei
+  giocatori, con cui l'admin crea e gestisce le sfide.
 - `admin/UsersScreen` + `users-state.svelte.ts` (ADR 0018):
   - `UsersState`: tutti i giocatori (`EveningAdmin.players`), bloccati compresi. Si rilegge
     quando cambiano `players`, `posts` o `player_completions` (chi entra, foto che arrivano o
@@ -114,12 +146,15 @@ e senza il pulsante "Vota".
     ora di ingresso, interruttori dei permessi (spenti per un bloccato) e "Blocca" (con
     conferma) / "Sblocca". Riceve la `PhotoLinksCache` per le foto profilo.
 - `admin/AlbumScreen` + `album-state.svelte.ts`: tutte le foto (azioni e post), condividi,
-  ZIP, elimina (moderazione). Schermata `wide`: su computer la griglia riempie la finestra
+  ZIP, elimina (moderazione). Export a parti da 100 (EXPORT_PART_SIZE): una sola parte in memoria alla
+  volta, perché 500 foto vere (circa 1,5 MB l'una) farebbero chiudere il browser del telefono; nomi dei file
+  brevi e unici su tutto l'album (Windows non estrae percorsi oltre 260 caratteri), download a gruppi di 6
+  con nuovi tentativi. Schermata `wide`: su computer la griglia riempie la finestra
   (colonne automatiche da 700 px). Il visore mostra tipo, titolo dell'azione o didascalia del
   post (come testo da leggere, non come titolo), autore, data e ora e scorre tra le foto; dopo
   un'eliminazione passa alla foto successiva. Le foto della chat non ci sono.
 - `admin/EveningScreen`: parola della serata (condividi, copia, cambia: chi è dentro resta o
-  esce), "Funzioni della serata" (interruttori Azioni / Bacheca / Chat / Classifica / Sondaggi), log accessi
+  esce), "Funzioni della serata" (interruttori Azioni / Bacheca / Chat / Classifica / Sondaggi / Sfide a tempo), log accessi
   admin (in una `ScrollArea`), "Termina e ricomincia" con promemoria delle foto.
 - `admin/admin-state.svelte.ts`: catalogo, partecipanti, parola, funzioni e log in tempo
   reale. `setFeature` è ottimista: l'interruttore si sposta subito e torna indietro se il
@@ -128,7 +163,8 @@ e senza il pulsante "Vota".
 ## Condivisi
 - `routes.ts`: i percorsi (`Route`, `hrefTo`), usati dai link e dal router di `app/`; tra
   questi `chat`, `conversazione/<id>`, `utenti` e `sondaggi` (uguale per giocatore e admin).
-- `labels.ts`: etichette, formato dell'ora, "5 min fa", `formatDay` ("Oggi", "Ieri", "ven 25
+- `labels.ts`: etichette, formato dell'ora, "5 min fa", `formatTimeLeft` (conti alla rovescia:
+  "14 min", "1 h 5 min", "meno di 1 min"), `formatDay` ("Oggi", "Ieri", "ven 25
   set") e `startOfDay`, nome leggibile del dispositivo, `PHOTO_LIMIT_MESSAGE` (lo stesso
   avviso per `photo-limit` in Azioni, Bacheca e chat).
 - Ogni scelta di foto (azioni, post, foto profilo, chat) usa lo stesso `PhotoPickerButton` di
@@ -138,5 +174,5 @@ e senza il pulsante "Vota".
 - Dipende da: `application/`, `domain/`, `ui/`.
 - Usato da: `app/` (`App.svelte`).
 - Ascolta: `GameBoard.onChange`, `Chat.onInbox`, `Chat.onTyping`.
-- Dati posseduti: stato in memoria di partita, bacheca, chat, profili, pannello, utenti, album
-  e sondaggi.
+- Dati posseduti: stato in memoria di partita, bacheca, chat, profili, pannello, utenti, album,
+  sondaggi e sfide.

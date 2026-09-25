@@ -8,10 +8,20 @@ const PARALLEL_DOWNLOADS = 6;
 const ATTEMPTS = 3;
 // Windows refuses to extract paths longer than 260 characters: a 300-character caption can't go in the name.
 const TITLE_IN_NAME_MAX = 30;
+// Real photos weigh about 1.5 MB: a whole evening in memory at once would crash a phone's browser.
+export const EXPORT_PART_SIZE = 100;
 
 export interface Preparation {
+  readonly part: number;
   readonly done: number;
   readonly total: number;
+}
+
+/** Photos from..to (1-based) of the album, saved together. */
+export interface ExportPart {
+  readonly index: number;
+  readonly from: number;
+  readonly to: number;
 }
 
 /**
@@ -22,7 +32,16 @@ export class AlbumState {
   status = $state<LoadStatus>('loading');
   photos = $state.raw<readonly AlbumPhoto[]>([]);
   preparation = $state.raw<Preparation | null>(null);
-  prepared = $state.raw<readonly NamedFile[] | null>(null);
+  /** One part at a time in memory: preparing another one lets the previous go. */
+  prepared = $state.raw<{ readonly part: number; readonly files: readonly NamedFile[] } | null>(null);
+
+  readonly parts = $derived.by((): readonly ExportPart[] =>
+    Array.from({ length: Math.ceil(this.photos.length / EXPORT_PART_SIZE) }, (_, index) => ({
+      index,
+      from: index * EXPORT_PART_SIZE + 1,
+      to: Math.min((index + 1) * EXPORT_PART_SIZE, this.photos.length),
+    })),
+  );
 
   readonly exporter: PhotoExporter;
   readonly #admin: EveningAdmin;
@@ -47,22 +66,29 @@ export class AlbumState {
     return { ok: true, value: undefined };
   }
 
-  async prepareAll(): Promise<void> {
-    const photos = this.photos;
-    this.preparation = { done: 0, total: photos.length };
+  zipName(part: number): string {
+    return this.parts.length === 1 ? 'fantalaurea-foto.zip' : `fantalaurea-foto-parte-${part + 1}-di-${this.parts.length}.zip`;
+  }
+
+  async prepare(part: number): Promise<void> {
+    const start = part * EXPORT_PART_SIZE;
+    // Names are made unique over the whole album, so parts never collide once extracted together.
+    const names = uniqueFileNames(this.photos).slice(start, start + EXPORT_PART_SIZE);
+    const photos = this.photos.slice(start, start + EXPORT_PART_SIZE);
+    this.prepared = null;
+    this.preparation = { part, done: 0, total: photos.length };
     try {
-      const names = uniqueFileNames(photos);
       const files: NamedFile[] = new Array(photos.length);
       let next = 0;
       const worker = async () => {
         while (next < photos.length) {
           const index = next++;
           files[index] = await withRetries(() => this.fetch(photos[index], names[index]));
-          this.preparation = { done: (this.preparation?.done ?? 0) + 1, total: photos.length };
+          this.preparation = { part, done: (this.preparation?.done ?? 0) + 1, total: photos.length };
         }
       };
       await Promise.all(Array.from({ length: PARALLEL_DOWNLOADS }, worker));
-      this.prepared = files;
+      this.prepared = { part, files };
     } finally {
       this.preparation = null;
     }

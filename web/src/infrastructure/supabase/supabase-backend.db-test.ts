@@ -7,6 +7,7 @@ import { ChangeSignals } from './change-signals';
 import { SupabaseBackend } from './supabase-backend';
 import { SupabaseChat } from './supabase-chat';
 import { SupabasePolls } from './supabase-polls';
+import { SupabaseChallenges } from './supabase-challenges';
 import { createSupabaseClient } from './supabase-client';
 
 // Default values of every local Supabase CLI stack.
@@ -17,6 +18,7 @@ const client = createSupabaseClient(LOCAL_URL, LOCAL_KEY);
 const signals = new ChangeSignals(client, { notifyDebounceMs: 0 });
 const backend = new SupabaseBackend(client, LOCAL_URL, signals);
 const polls = new SupabasePolls(client, signals);
+const challenges = new SupabaseChallenges(client, signals);
 const chat = new SupabaseChat(client, LOCAL_URL);
 
 const photo = (): PreparedPhoto => ({
@@ -239,7 +241,7 @@ describe('features', () => {
 
   it('lets the admin switch features off, and the server enforces it', async () => {
     const alice = await asPlayer('Alice');
-    expect(await backend.features(alice)).toEqual({ actions: true, chat: true, feed: true, leaderboard: true, polls: true });
+    expect(await backend.features(alice)).toEqual({ actions: true, chat: true, feed: true, leaderboard: true, polls: true, challenges: true });
     await backend.setFeature(admin, 'feed', false);
     expect((await backend.features(alice)).feed).toBe(false);
     expect(await backend.createPost(alice, photo(), 'no')).toEqual({ ok: false, error: 'disabled' });
@@ -353,6 +355,66 @@ describe('polls', () => {
     await backend.setFeature(admin, 'polls', true);
     expect(await polls.remove(admin, poll.id)).toEqual({ ok: true, value: undefined });
     expect(await polls.list(bob)).toEqual([]);
+  });
+
+  it('cannot be voted once its creator is blocked', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    await backend.setPermission(admin, alice.player.id, 'polls', true);
+    await polls.create(alice, draft());
+    const [poll] = await polls.list(bob);
+    await backend.setBlocked(admin, alice.player.id, true);
+    expect(await polls.vote(bob, poll.id, [poll.options[0].id])).toEqual({ ok: false, error: 'rejected' });
+  });
+});
+
+describe('challenges', () => {
+  const draft = (winnersLimit: number | null = null) => ({ title: 'Trenino', description: '', points: 20, winnersLimit, durationMinutes: 10 });
+  const pointsOf = async (session: PlayerSession) =>
+    (await backend.participants(session)).find((p) => p.player.id === session.player.id)?.points ?? 0;
+
+  it('is launched by the admin or by players allowed to', async () => {
+    const alice = await asPlayer('Alice');
+    expect(await challenges.create(alice, draft())).toEqual({ ok: false, error: 'forbidden' });
+    await backend.setPermission(admin, alice.player.id, 'challenges', true);
+    expect((await challenges.create(alice, draft())).ok).toBe(true);
+    expect((await challenges.create(admin, draft())).ok).toBe(true);
+    expect(await challenges.list(alice)).toHaveLength(2);
+  });
+
+  it('gives its points in the ranking, only to the first N when limited', async () => {
+    const alice = await asPlayer('Alice');
+    const bob = await asPlayer('Bob');
+    await challenges.create(admin, draft(1));
+    const [challenge] = await challenges.list(alice);
+    const before = await pointsOf(alice);
+    expect(await challenges.complete(alice, challenge.id)).toEqual({ ok: true, value: undefined });
+    expect(await pointsOf(alice)).toBe(before + 20);
+    expect(await challenges.complete(bob, challenge.id)).toEqual({ ok: false, error: 'full' });
+    expect((await challenges.list(alice))[0]).toMatchObject({ completions: 1, mine: { rank: 1 }, winners: [{ nickname: 'Alice' }] });
+
+    await challenges.undo(alice, challenge.id);
+    expect(await pointsOf(alice)).toBe(before);
+    expect((await challenges.complete(bob, challenge.id)).ok).toBe(true);
+  });
+
+  it('refuses completions once ended, reopens when extended, takes points back when deleted', async () => {
+    const alice = await asPlayer('Alice');
+    await challenges.create(admin, draft());
+    const [challenge] = await challenges.list(alice);
+    await challenges.end(admin, challenge.id);
+    expect(await challenges.complete(alice, challenge.id)).toEqual({ ok: false, error: 'ended' });
+    await challenges.update(admin, challenge.id, { title: 'Trenino lungo', description: '', points: 30, winnersLimit: null, extendMinutes: 5 });
+    expect((await challenges.complete(alice, challenge.id)).ok).toBe(true);
+    const before = await pointsOf(alice);
+    await challenges.remove(admin, challenge.id);
+    expect(await pointsOf(alice)).toBe(before - 30);
+  });
+
+  it('follows the switch', async () => {
+    await backend.setFeature(admin, 'challenges', false);
+    expect(await challenges.create(admin, draft())).toEqual({ ok: false, error: 'disabled' });
+    await backend.setFeature(admin, 'challenges', true);
   });
 });
 

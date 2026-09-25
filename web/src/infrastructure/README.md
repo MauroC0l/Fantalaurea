@@ -75,8 +75,17 @@ Implementazioni concrete delle porte definite in `application/ports.ts`.
     un adattatore a parte e non altri metodi di `SupabaseBackend`, che è già grande, ma un solo
     canale per telefono.
   - Il codice `28000` nelle letture diventa `SessionExpiredError`, come nel backend.
+- `supabase/supabase-challenges.ts`: `SupabaseChallenges(client, signals)` implementa
+  `Challenges` (ADR 0020) con le RPC `challenges`, `create_challenge`, `update_challenge`,
+  `end_challenge`, `delete_challenge`, `complete_challenge`, `undo_challenge`.
+  - La risposta di `challenges` diventa una `Challenge` del dominio (date come `Date`, conteggi
+    e posizione convertiti in numeri).
+  - Dopo **ogni** scrittura riuscita annuncia `challenges`, anche per completare e annullare:
+    i punti delle sfide entrano in `participants`, quindi la classifica ascolta anche questa
+    tabella. Stesso `ChangeSignals` e stesso motivo di `SupabasePolls` per l'adattatore a parte.
+  - Il codice `28000` nelle letture diventa `SessionExpiredError`.
 - `supabase/supabase-backend.db-test.ts`: test d'integrazione contro lo stack locale
-  (`npm run test:db`, ricrea il database locale), sondaggi compresi.
+  (`npm run test:db`, ricrea il database locale), sondaggi e sfide compresi.
 - `browser/canvas-photo-processor.ts`: decodifica (anche HEIC su Safari), orientamento,
   JPEG. `original`: 2560 px + miniatura 720 px; `square`: ritaglio centrale 512 px +
   miniatura 160 px (valori in `app/compose.ts`).

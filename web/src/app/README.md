@@ -6,9 +6,9 @@ di vita della sessione.
 ## Contenuto
 - `compose.ts`: `composeApp()` è il composition root, l'unico punto che conosce le classi
   concrete di `infrastructure/`. Legge `VITE_SUPABASE_URL` e `VITE_SUPABASE_KEY`, crea un solo
-  client Supabase condiviso da `SupabaseBackend`, `SupabaseChat` e `SupabasePolls` (ADR 0019;
-  riceve lo stesso `ChangeSignals` del backend, così c'è un solo canale `fantalaurea` per
-  telefono), collega il registratore dei
+  client Supabase condiviso da `SupabaseBackend`, `SupabaseChat`, `SupabasePolls` (ADR 0019) e
+  `SupabaseChallenges` (ADR 0020); questi ultimi due ricevono lo stesso `ChangeSignals` del
+  backend, così c'è un solo canale `fantalaurea` per telefono. Collega il registratore dei
   vocali (`browserVoiceRecorder`, con il limite `VOICE_MAX_MS`) e fissa la qualità delle foto.
 - `router.svelte.ts`: `PathRouter` (ADR 0017), che trasforma il percorso in un `Route`
   (definito in `features/routes.ts`, sotto `BASE_PATH`): `regole`, `parola`, `iscrizione`,
@@ -31,7 +31,15 @@ di vita della sessione.
   (il Profilo c'è sempre; `SCREEN_FEATURES` dice da quale funzione dipende ogni schermata, ADR
   0014: `sondaggi` → `polls`). Le schede del giocatore sono Bacheca / Azioni / Classifica /
   Chat / Sondaggi / Profilo; il pulsante "Nuovo" dei sondaggi dipende da
-  `game.permissions.polls` (ADR 0018). "Invia
+  `game.permissions.polls` (ADR 0018).
+  Sfide a tempo (ADR 0020): `playing` e `administering` tengono anche `challenges`
+  (`ChallengesState`), avviato all'ingresso e fermato con il resto, perché l'avviso deve
+  arrivare su qualsiasi schermata. Per il giocatore `announceChallenge` mostra un avviso con
+  vibrazione quando compare una sfida nuova (solo a chi ha l'app aperta: niente push);
+  l'admin non riceve avvisi. Con la funzione accesa la scheda Azioni ha come badge
+  `challenges.todo`. `ChallengesSection` entra come snippet `top` in `ActionsScreen` (solo con
+  la funzione accesa; "Nuova" dipende da `game.permissions.challenges`) e in
+  `AdminActionsScreen` (sempre, con `canCreate`). "Invia
   messaggio" dal profilo apre (o crea) la conversazione e ci naviga. La conversazione riceve
   anche la lista delle chat (per l'inoltro) e gli appunti ("Copia testo"); la lista riceve la
   vibrazione (pressione lunga). Una sessione scaduta riporta alle regole con un avviso.

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte';
   import { flip } from 'svelte/animate';
   import { fly } from 'svelte/transition';
   import type { CompleteError } from '../../application/complete-action';
@@ -29,9 +30,11 @@
     game: GameState;
     links: PhotoLinksCache;
     haptics: Haptics;
+    /** Shown above the list, e.g. the timed challenges: this screen does not know about them. */
+    top?: Snippet;
   }
 
-  let { game, links, haptics }: Props = $props();
+  let { game, links, haptics, top }: Props = $props();
 
   type Filter = 'all' | 'bonus' | 'malus' | 'done';
 
@@ -120,6 +123,8 @@
       <ProgressBar value={game.done.length} max={game.catalog.length} label="Azioni completate" />
     </div>
   </ScreenHeader>
+
+  {#if top}{@render top()}{/if}
 
   {#if game.status === 'loading'}
     <Loader label="Carico le azioni…" />

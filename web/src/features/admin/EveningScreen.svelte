@@ -56,6 +56,7 @@
     { name: 'chat', label: 'Chat', description: 'Messaggi privati, foto e vocali tra giocatori' },
     { name: 'leaderboard', label: 'Classifica', description: 'Chi è in testa. I punti restano comunque' },
     { name: 'polls', label: 'Sondaggi', description: 'Li crei tu o chi abiliti in Utenti' },
+    { name: 'challenges', label: 'Sfide a tempo', description: 'Bonus da fare in pochi minuti, nella sezione Azioni' },
   ];
 
   async function toggleFeature(feature: FeatureName, enabled: boolean) {

@@ -32,6 +32,13 @@ export function formatDateTime(date: Date): string {
   return date.toLocaleString('it-IT', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+/** "14 min", "1 h 5 min", "meno di 1 min": for countdowns that tick every few seconds. */
+export function formatTimeLeft(seconds: number): string {
+  if (seconds < 60) return 'meno di 1 min';
+  const minutes = Math.floor(seconds / 60);
+  return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
+}
+
 /** "Oggi", "Ieri", otherwise "ven 25 set". */
 export function formatDay(date: Date, now: Date = new Date()): string {
   const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000);

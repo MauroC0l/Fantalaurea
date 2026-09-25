@@ -1,117 +1,87 @@
 # Stato della sessione — Fantalaurea
 
-Ultimo aggiornamento: 2026-09-25
+Ultimo aggiornamento: 2026-09-25 (notte)
 
 ## Obiettivo
 Web app "Fantalaurea" per le feste di laurea di un gruppo di circa 50 amici. Ogni festa è
-indipendente (a fine serata si azzera tutto). È un gioco a punti con azioni da completare,
-più un piccolo social interno: bacheca con post, like e profili. Si entra con una parola
+indipendente: a fine serata si azzera tutto. È un gioco a punti con azioni da completare, più un
+piccolo social interno: bacheca, chat, sondaggi, sfide a tempo. Si entra con una parola
 segreta. Si usa quasi solo da telefono. Prima festa: **2026-10-02**.
 
 ## Decisioni prese (dettagli in docs/adr/)
 - Regole di lavoro: `CLAUDE.md`. Commit e push autorizzati liberamente.
-- 0001 Svelte + TS SPA con routing via hash · 0002 Supabase · 0003 identità nickname + nome
-  vero · 0004 livelli e porte.
-- 0005 / 0006: admin `Administrator` / `admin`, credenziali pubbliche nel repo, confermato due
-  volte dall'utente (l'ultima il 2026-09-25). Contromisura: log degli accessi admin.
-- 0007 ogni azione una volta sola, annullabile · 0008 foto in bucket privato + Edge Function,
-  JPEG 2560 px · 0009 niente backend in memoria · 0010 punti visibili, classifica a punti,
-  difficoltà soft/medium/hard.
-- 0011 serata chiusa:
-  - parola segreta generata (e rigenerata a ogni "Termina e ricomincia"), modificabile
-    dall'admin, che sceglie se far uscire chi è dentro;
-  - nessuna tabella leggibile dai client; tempo reale solo come segnale "tabella X cambiata"
-    sul canale broadcast `fantalaurea`;
-  - "Sei tu?" quando un nuovo nickname ha un nome vero già presente: il vecchio profilo
-    prende il nuovo nickname.
-- 0012 bacheca stile Instagram (post con foto + didascalia di 300 caratteri, schede delle
-  azioni completate, like con elenco), profili (foto quadrata, bio di 500 caratteri), foto
-  visibili a tutti i partecipanti. Tab: Bacheca · Azioni · Classifica · Profilo. Admin:
-  Azioni · Album · Serata.
-- Azione "foto ai genitali" ELIMINATA (decisione dell'utente il 2026-09-25, dopo la
-  segnalazione del rischio art. 612-ter).
-- Titoli e difficoltà delle azioni proposti da Claude: l'utente li rivede dal pannello.
-- 0013 segnali di tempo reale inviati dai client · 0014 funzioni attivabili per serata
-  (Bacheca, Chat, Classifica: colonne tipizzate in `evening_settings`, controllate dal server,
-  sopravvivono al reset) · 0015 chat privata 1:1 (testo ≤1000, foto, vocali ≤60 s in mp4 se
-  possibile; l'admin non la legge; ognuno cancella i propri messaggi; bucket `chat`; segnali
-  sul canale personale `inbox:<inboxKey>`).
+- 0001 Svelte + TS SPA (il routing via hash è superato da 0017) · 0002 Supabase · 0003 identità
+  nickname + nome vero · 0004 livelli e porte.
+- 0005 / 0006: admin `Administrator` / `admin`, credenziali pubbliche nel repo, confermate
+  dall'utente. Contromisura: log degli accessi admin.
+- 0007 ogni azione una volta sola, annullabile · 0008 foto in bucket privato + Edge Function ·
+  0009 niente backend in memoria · 0010 punti visibili e difficoltà.
+- 0011 serata chiusa, parola segreta, nessuna tabella leggibile dai client · 0012 bacheca e
+  profili · 0013 segnali di tempo reale dai client (classe `ChangeSignals`, un solo canale).
+- 0014 funzioni attivabili per serata: Azioni, Bacheca, Chat, Classifica, Sondaggi, Sfide.
+- 0015 chat privata · 0016 chat come WhatsApp:
+  - rispondi, modifica, inoltra, elimina per me o per tutti;
+  - svuota, cancella, segna da leggere;
+  - "sta scrivendo".
+- 0017 indirizzi senza `#`: History API e copia di `index.html` in `404.html`.
+- 0018 Utenti:
+  - blocco reversibile, rientro rifiutato anche con lo stesso nome vero;
+  - permessi per sondaggi e sfide;
+  - limite di 100 foto esistenti per utente.
+- 0019 sondaggi con regole per sondaggio · 0020 sfide a tempo, punti a tutti o ai primi N,
+  senza foto per ora.
+- Azione "foto ai genitali" eliminata (decisione dell'utente, rischio art. 612-ter).
 
-## Stato attuale (verificato 2026-09-25, pomeriggio)
-- Chat, interruttori admin, foto "Scatta ora" dalla fotocamera, lightbox su pc: in produzione
-  (commit fd9f291 + correzioni successive). Test: 33 unitari, 18 d'integrazione.
-- **La festa di produzione è piena di dati finti** (richiesta dell'utente, per provare
-  l'interfaccia): 126 giocatori, 1316 completamenti (458 con foto), ~90 post, 2775 like,
-  ~75 chat. Parola: `spritz-relatore-77`. Account demo: nickname `Il Demo`, nome vero
-  `Demo Fantalaurea` (36 chat, una da 120 messaggi). Script: scratchpad della sessione,
-  `seed-demo.mjs` (non versionato). **Da azzerare con "Termina e ricomincia" prima del
-  2026-10-02**; le 10 azioni aggiunte dallo script (es. "Discorso di ringraziamento
-  infinito") sopravvivono al reset: vanno tolte a mano dal pannello Azioni.
-- Problemi trovati coi dati pesanti e corretti: pagina più larga dello schermo (griglie CSS con
-  colonna `auto` → `minmax(0, 1fr)`), album admin in errore con 555 foto (firme e
-  cancellazioni nello storage ora a blocchi di 200; album letto a pagine da 1000 righe),
-  cambio scheda che non tornava in cima, barre trasparenti, didascalie lunghe in lightbox.
-- Tutto implementato in locale e verificato:
-  - 30 test unitari e 14 d'integrazione (`npm run test:db`);
-  - prova nel browser con 3 telefoni simulati + admin: parola sbagliata e giusta, post, doppio
-    tocco, elenco dei like, scheda in tempo reale, bio e foto profilo, profilo dalla
-    classifica, passaggio del profilo, log admin, cambio parola con espulsione.
-- In produzione dal 2026-09-25 (commit c5e5d62 e successivi). Scoperto in produzione che i
-  broadcast generati dal database non arrivano ai canali pubblici del Supabase ospitato:
-  ora i segnali partono dai client (ADR 0013, migrazione `20260925150000_client_change_signals.sql`).
+## Stato attuale (verificato 2026-09-25 notte)
+- In produzione:
+  - tutto fino ai sondaggi (commit a39417d);
+  - migrazioni e funzione `photos` fino alle sfide (`20260926000100_hidden_poll_votes.sql`).
+- **Sito delle sfide ed export a parti: nel commit in arrivo** (vedi `git log`).
+- Test: 45 unitari, 34 d'integrazione (`npm run test:db`), tutti verdi.
+- **La festa di produzione è piena di dati finti** (richiesta dell'utente):
+  - 126 giocatori, 1316 completamenti (458 con foto), circa 90 post, 2775 like, circa 75 chat;
+  - parola: `spritz-relatore-77`;
+  - account demo: nickname `Il Demo`, nome vero `Demo Fantalaurea`;
+  - **da azzerare con "Termina e ricomincia" prima del 2026-10-02**;
+  - le 10 azioni aggiunte dallo script (es. "Discorso di ringraziamento infinito")
+    sopravvivono al reset: vanno tolte a mano dal pannello Azioni.
 
-## In corso (richiesta dell'utente del 2026-09-25 sera)
-Fatto e in produzione (commit 5f078cf, 5a8fd69):
-- ZIP con nomi brevi (Windows), download dell'album a gruppi con nuovi tentativi;
-- chat come WhatsApp (ADR 0016);
-- pulsante unico "Carica foto" con menu fotocamera/galleria;
-- `ScrollArea`, zoom della foto profilo, regole brevi;
-- Azioni spegnibile, nickname a 20.
-
-Da fare, in quest'ordine (decisioni dell'utente già prese):
-1. URL senza `#` (history API + 404.html per GitHub Pages; riapre ADR 0001).
-2. Schermata admin "Utenti":
-   - blocca / sblocca: esce subito, non rientra con lo stesso nickname o nome vero; i suoi
-     contenuti sono nascosti, non cancellati;
-   - permessi per singolo utente: può creare sondaggi / sfide;
-   - limite di 100 foto esistenti per utente (azioni + post + chat, foto profilo esclusa;
-     cancellare libera il posto).
-3. Sondaggi (funzione spegnibile, sezione "Sondaggi"): li creano l'admin o gli utenti
-   abilitati. Impostazioni per sondaggio: anonimo o no, scelta singola o multipla, quando si
-   vedono i risultati, se si può cambiare voto, chiusura manuale o a tempo. Niente punti.
-4. Sfide a tempo (funzione spegnibile, sezione dentro Azioni): le creano e modificano l'admin
-   o gli utenti abilitati; più sfide insieme; punti a tutti quelli che la completano in
-   tempo, oppure solo ai primi N (impostazione per sfida). Avviso solo a chi ha l'app aperta.
-5. Export dell'album in parti da 100 foto (memoria dei telefoni).
-
-Domande ancora aperte per l'utente:
-- dominio personalizzato al posto di mauroc0l.github.io;
-- cosa intende per chiusura "automatica" di un sondaggio.
+## Domande aperte per l'utente
+- **Dominio proprio** al posto di `mauroc0l.github.io/Fantalaurea`. Opzioni:
+  - dominio comprato (circa 10 €/anno) su GitHub Pages;
+  - sottodominio gratis su Cloudflare Pages / Netlify, che hanno anche le riscritture e
+    quindi eliminerebbero il codice 404.
+- **Chiusura "automatica" dei sondaggi:** implementata come "si chiude quando hanno votato
+  tutti"; va confermato.
+- **Sfide con foto di prova?** Oggi no: aggiungerle tocca album, limite, link e reset.
 
 ## Prossimi passi
-- L'utente guarda l'interfaccia coi dati finti, poi azzera la serata e toglie le azioni demo.
-- L'utente prova con telefoni veri entro il 2026-09-30 (fotocamera, like, condivisione della
-  parola, iPhone e Android) e rivede titoli e difficoltà.
-- Dal 2026-09-30 solo correzioni.
-- Prima di ogni festa: Supabase non in pausa; l'admin legge la parola nella scheda Serata e la
-  condivide.
+- L'utente prova tutto coi dati finti, poi azzera la serata e toglie le azioni demo.
+- Prove su telefoni veri entro il 2026-09-30: fotocamera (Xiaomi!), vocali iPhone, pressione
+  lunga, trascina per rispondere.
+- Dal 2026-09-30 solo correzioni. Prima di ogni festa: Supabase non in pausa.
 
 ## Trappole
-- Vite: `.env.production` vince su `.env.local`: il file locale è `web/.env.development.local`;
-  per una build di prova sul locale usare `npx vite build --mode development`.
+- Vite:
+  - `.env.production` vince su `.env.local`, per questo il file locale è
+    `web/.env.development.local`;
+  - build di prova sul locale: `npx vite build --mode development`;
+  - con `BASE_PATH` in Git Bash serve `MSYS_NO_PATHCONV=1`, altrimenti `/Fantalaurea/` diventa un
+    percorso di Windows.
+- Per provare in locale come su GitHub Pages: server `pages-server.mjs` (scratchpad), porta
+  4180, sotto `/Fantalaurea/` con fallback su `404.html`.
 - La CLI Supabase non riesegue un seed già applicato: i dati per la produzione vanno in una
   migrazione.
-- Supabase blocca `UPDATE` / `DELETE` senza `WHERE` (usare `where true`).
-- Una funzione `stable` chiamata nella stessa istruzione di un `insert` non vede la riga
-  nuova: separare le istruzioni (vedi `join_game`).
-- Nei nuovi SQL attenzione agli alias chiamati `id`: la vista `all_completions` ha una colonna
-  `id`.
+- SQL:
+  - Supabase blocca `UPDATE` / `DELETE` senza `WHERE` (usare `where true`);
+  - una funzione `stable` nella stessa istruzione di un `insert` non vede la riga nuova;
+  - ogni migrazione che aggiunge funzioni ripete `revoke ... grant` con l'elenco completo delle
+    RPC client (vedi l'ultima migrazione).
 - Le letture con token scaduto rispondono HTTP 403 (codice `28000`): è il segnale atteso.
-- Cancellare righe dalla dashboard lascia file orfani nel bucket `photos`.
-- Docker serve solo per sviluppare. Niente Python né `gh` su questa macchina; PowerShell blocca
-  `npx` (usare `npx.cmd` o `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`).
 - Griglie CSS: senza `grid-template-columns: minmax(0, 1fr)` un testo con ellipsis allarga la
-  colonna e tutta la pagina. Storage Supabase: non firmare/cancellare centinaia di file in una
-  richiesta sola. RPC che restituiscono righe: massimo 1000 per chiamata (`max_rows`).
-- Negli script bash evitare backtick e apostrofi dentro stringhe `node -e`: usare lo strumento
-  di scrittura file.
+  pagina.
+- Storage: niente centinaia di file in una richiesta sola. Le RPC restituiscono al massimo
+  1000 righe.
+- Negli script bash niente apostrofi dentro `node -e` o heredoc complessi: scrivere script `.cjs`
+  su file.
+- Docker serve solo per sviluppare. Niente Python né `gh` su questa macchina.
